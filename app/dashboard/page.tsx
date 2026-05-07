@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
+  const [stats, setStats] = useState({ points: 0, exact: 0 })
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -40,6 +41,17 @@ export default function DashboardPage() {
     }
     const { data: predData } = await supabase.from('predictions').select('*').eq('user_id', user.id)
     setPredictions(predData || [])
+    
+    // Načtení statistik
+    const { data: preds } = await supabase
+      .from('predictions')
+      .select('points, exact_hit')
+      .eq('user_id', user.id)
+      .not('points', 'is', null)
+    const points = preds?.reduce((sum, p) => sum + (p.points || 0), 0) || 0
+    const exact = preds?.filter(p => p.exact_hit === true).length || 0
+    setStats({ points, exact })
+    
     setLoading(false)
   }
 
@@ -74,6 +86,16 @@ export default function DashboardPage() {
 
   return (
     <div>
+      {/* Statistiky nad nadpisem */}
+      <div className="flex gap-3 mb-4">
+        <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1">
+          ⭐ {stats.points} bodů
+        </div>
+        <div className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1">
+          🎯 {stats.exact} přesných
+        </div>
+      </div>
+
       <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Moje tipy</h1>
       
       {message && (

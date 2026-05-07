@@ -9,8 +9,6 @@ import { useTheme } from '@/components/theme-provider'
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
   const [user, setUser] = useState<any>(null)
-  const [totalPoints, setTotalPoints] = useState(0)
-  const [exactCount, setExactCount] = useState(0)
   const pathname = usePathname()
   const { theme, toggleTheme } = useTheme()
 
@@ -18,21 +16,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       setUser(user)
-      if (user) {
-        const { data: preds } = await supabase
-          .from('predictions')
-          .select('points, exact_hit')
-          .eq('user_id', user.id)
-          .not('points', 'is', null)
-        
-        const points = preds?.reduce((sum, p) => sum + (p.points || 0), 0) || 0
-        const exact = preds?.filter(p => p.exact_hit === true).length || 0
-        setTotalPoints(points)
-        setExactCount(exact)
-      }
     }
     load()
-  }, [supabase, pathname])
+  }, [supabase])
 
   const navItems = [
     { href: '/dashboard', label: 'Tipy', icon: '📋' },
@@ -50,15 +36,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="font-bold text-lg text-slate-900 dark:text-white tracking-tight">Tipovačka</span>
           </div>
           <div className="flex items-center gap-3">
-            {/* Stats - viditelné na všech obrazovkách */}
-            <div className="flex items-center gap-2">
-              <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-full text-sm font-bold">
-                ⭐ {totalPoints}
-              </div>
-              <div className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-3 py-1.5 rounded-full text-sm font-bold">
-                🎯 {exactCount}
-              </div>
-            </div>
             <button 
               onClick={toggleTheme} 
               className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition text-slate-600 dark:text-slate-300"
