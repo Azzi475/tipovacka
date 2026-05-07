@@ -65,7 +65,7 @@ export default function DashboardPage() {
 
     if (error) setMessage('Chyba: ' + error.message)
     else {
-      setMessage('Tip uložen! 🎯')
+      setMessage('Tip uložen!')
       loadData()
     }
   }
@@ -77,7 +77,7 @@ export default function DashboardPage() {
       <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Moje tipy</h1>
       
       {message && (
-        <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-xl text-sm font-medium animate-fade-in">
+        <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-xl text-sm font-medium">
           {message}
         </div>
       )}
@@ -92,7 +92,7 @@ export default function DashboardPage() {
           return (
             <div key={match.id} className={`bg-white dark:bg-slate-800 rounded-2xl shadow-sm border transition-all overflow-hidden ${isFinished ? 'border-slate-200 dark:border-slate-700' : locked ? 'border-amber-200 dark:border-amber-900/50' : 'border-slate-200 dark:border-slate-700 hover:shadow-md'}`}>
               <div className="p-5">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <span className={`w-2 h-2 rounded-full ${isFinished ? 'bg-emerald-500' : locked ? 'bg-amber-500' : 'bg-blue-500'}`}></span>
                     <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
@@ -102,25 +102,25 @@ export default function DashboardPage() {
                   <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(match.kickoff_at).toLocaleString('cs-CZ')}</span>
                 </div>
 
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                      <span className="text-2xl leading-none">{getFlag(match.home_team_name)}</span>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0 text-center">
+                    <div className="inline-flex items-center justify-center gap-2 whitespace-nowrap">
+                      <span className="text-2xl leading-none flex-shrink-0">{getFlag(match.home_team_name)}</span>
                       <span className="text-lg font-bold text-slate-900 dark:text-white">{match.home_team_name}</span>
                       <span className="text-slate-300 dark:text-slate-600 font-bold mx-1">vs</span>
                       <span className="text-lg font-bold text-slate-900 dark:text-white">{match.away_team_name}</span>
-                      <span className="text-2xl leading-none">{getFlag(match.away_team_name)}</span>
+                      <span className="text-2xl leading-none flex-shrink-0">{getFlag(match.away_team_name)}</span>
                     </div>
                     {isFinished && match.home_score_regular !== null && (
-                      <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                      <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-1">
                         Výsledek: {match.home_score_regular} : {match.away_score_regular}
                       </div>
                     )}
                   </div>
 
-                  <div className="flex flex-col items-end gap-2 min-w-[80px]">
+                  <div className="flex-shrink-0 flex flex-col items-end gap-2">
                     {pred && (
-                      <div className="text-2xl font-black text-slate-900 dark:text-white tabular-nums text-right">
+                      <div className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">
                         {pred.predicted_home_score}<span className="text-slate-300 dark:text-slate-600 mx-1">:</span>{pred.predicted_away_score}
                       </div>
                     )}
@@ -137,7 +137,7 @@ export default function DashboardPage() {
               </div>
 
               {!locked && !isFinished && (
-                <div className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-700/50">
+                <div className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-700/50 flex justify-center">
                   <TipForm matchId={match.id} current={pred} onSubmit={submitTip} />
                 </div>
               )}
