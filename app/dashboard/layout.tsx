@@ -26,7 +26,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           .not('points', 'is', null)
         
         const points = preds?.reduce((sum, p) => sum + (p.points || 0), 0) || 0
-        const exact = preds?.filter(p => p.exact_hit).length || 0
+        const exact = preds?.filter(p => p.exact_hit === true).length || 0
         setTotalPoints(points)
         setExactCount(exact)
       }
@@ -50,12 +50,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="font-bold text-lg text-slate-900 dark:text-white tracking-tight">Tipovačka</span>
           </div>
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2">
+            {/* Stats - viditelné na všech obrazovkách */}
+            <div className="flex items-center gap-2">
               <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 rounded-full text-sm font-bold">
-                ⭐ {totalPoints} bodů
+                ⭐ {totalPoints}
               </div>
               <div className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-3 py-1.5 rounded-full text-sm font-bold">
-                🎯 {exactCount} přesných
+                🎯 {exactCount}
               </div>
             </div>
             <button 
