@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 20 20">
+  <!-- Generator: Adobe Illustrator 30.4.0, SVG Export Plug-In . SVG Version: 2.1.4 Build 226)  -->
+  <defs>
+    <style>
+      .st0 {
+        stroke: #2b3952;
+      }
+
+      .st0, .st1 {
+        fill: none;
+        stroke-miterlimit: 10;
+      }
+
+      .st1 {
+        stroke: #3354a1;
+      }
+
+      .st2 {
+        display: none;
+      }
+    </style>
+  </defs>
+  <g id="Vrstva_1" class="st2">
+    <path class="st1" d="M19.39,10c0,5.19-4.2,9.39-9.39,9.39-3.36,0-6.31-1.76-7.97-4.42.92.3,1.9.46,2.92.46,5.19,0,9.39-4.2,9.39-9.39,0-1.83-.52-3.53-1.42-4.97,3.76,1.23,6.47,4.76,6.47,8.93Z"/>
+  </g>
+  <g id="Vrstva_2">
+    <circle class="st0" cx="10" cy="10" r="5.46"/>
+    <rect class="st0" x="9.74" y="1.24" width=".52" height="3.06" rx=".26" ry=".26"/>
+    <rect class="st0" x="9.74" y="15.7" width=".52" height="3.06" rx=".26" ry=".26"/>
+    <rect class="st0" x="16.73" y="8.47" width=".52" height="3.06" rx=".26" ry=".26" transform="translate(26.99 -6.99) rotate(90)"/>
+    <rect class="st0" x="2.75" y="8.73" width=".52" height="3.06" rx=".26" ry=".26" transform="translate(13.27 7.25) rotate(90)"/>
+    <rect class="st0" x="3.91" y="2.4" width=".52" height="3.06" rx=".26" ry=".26" transform="translate(9.9 3.76) rotate(135)"/>
+    <rect class="st0" x="15.57" y="14.54" width=".52" height="3.06" rx=".26" ry=".26" transform="translate(38.39 16.24) rotate(135)"/>
+    <rect class="st0" x="15.57" y="2.4" width=".52" height="3.06" rx=".26" ry=".26" transform="translate(7.41 -10.04) rotate(45)"/>
+    <rect class="st0" x="3.42" y="14.54" width=".52" height="3.06" rx=".26" ry=".26" transform="translate(12.44 2.1) rotate(45)"/>
+  </g>
+</svg>

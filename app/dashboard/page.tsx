@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { getFlag } from '@/lib/flags'
+import Image from 'next/image'
 
 type Match = {
   id: string
@@ -28,7 +29,6 @@ export default function DashboardPage() {
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
-  const [stats, setStats] = useState({ points: 0, exact: 0 })
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -41,17 +41,6 @@ export default function DashboardPage() {
     }
     const { data: predData } = await supabase.from('predictions').select('*').eq('user_id', user.id)
     setPredictions(predData || [])
-    
-    // Načtení statistik
-    const { data: preds } = await supabase
-      .from('predictions')
-      .select('points, exact_hit')
-      .eq('user_id', user.id)
-      .not('points', 'is', null)
-    const points = preds?.reduce((sum, p) => sum + (p.points || 0), 0) || 0
-    const exact = preds?.filter(p => p.exact_hit === true).length || 0
-    setStats({ points, exact })
-    
     setLoading(false)
   }
 
@@ -86,20 +75,10 @@ export default function DashboardPage() {
 
   return (
     <div>
-      {/* Statistiky nad nadpisem */}
-      <div className="flex gap-3 mb-4">
-        <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1">
-          ⭐ {stats.points} bodů
-        </div>
-        <div className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1">
-          🎯 {stats.exact} přesných
-        </div>
-      </div>
-
-      <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Moje tipy</h1>
+      <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Moje tipy</h1>
       
       {message && (
-        <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-xl text-sm font-medium">
+        <div className="mb-4 p-3 bg-soft-teal dark:bg-teal/20 border border-teal/30 text-teal dark:text-dark-teal rounded-xl text-sm font-medium">
           {message}
         </div>
       )}
@@ -111,55 +90,73 @@ export default function DashboardPage() {
           const isFinished = match.status === 'finished'
           const hasPoints = pred && typeof pred.points === 'number'
 
+          const statusConfig: Record<string, { text: string; color: string; dot: string }> = {
+            scheduled: { text: locked ? 'ZAMČENO' : 'OTEVŘENO', color: locked ? 'text-amber-500' : 'text-status-open', dot: locked ? 'bg-amber-500' : 'bg-status-open' },
+            live: { text: 'ŽIVĚ', color: 'text-red-500', dot: 'bg-red-500' },
+            finished: { text: 'VYHODNOCENO', color: 'text-status-finished', dot: 'bg-status-finished' },
+            postponed: { text: 'ZRUŠENO', color: 'text-status-cancelled', dot: 'bg-status-cancelled' },
+          }
+          const status = statusConfig[match.status] || statusConfig.scheduled
+
           return (
-            <div key={match.id} className={`bg-white dark:bg-slate-800 rounded-2xl shadow-sm border transition-all overflow-hidden ${isFinished ? 'border-slate-200 dark:border-slate-700' : locked ? 'border-amber-200 dark:border-amber-900/50' : 'border-slate-200 dark:border-slate-700 hover:shadow-md'}`}>
+            <div key={match.id} className="relative bg-white dark:bg-dark-card rounded-2xl shadow-sm border border-slate-200 dark:border-dark-border overflow-hidden">
               <div className="p-5">
-                <div className="flex items-center justify-between mb-4">
+                {/* Pravý horní roh – tip hráče */}
+                <div className="absolute top-5 right-5 flex flex-col items-end gap-1 z-10">
+                  {pred && (
+                    <div className="text-xl font-black text-slate-900 dark:text-white tabular-nums">
+                      {pred.predicted_home_score}<span className="text-slate-300 dark:text-slate-600 mx-1">:</span>{pred.predicted_away_score}
+                    </div>
+                  )}
+                  {hasPoints && (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${pred.points === 0 ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400' : pred.points === 1 ? 'bg-light-blue dark:bg-dark-primary/30 text-primary-blue dark:text-dark-secondary' : 'bg-soft-teal dark:bg-teal/20 text-teal dark:text-dark-teal'}`}>
+                      {pred.points} {pred.points === 1 ? 'bod' : pred.points && pred.points > 1 && pred.points < 5 ? 'body' : 'bodů'}
+                    </span>
+                  )}
+                  {isFinished && !pred && (
+                    <span className="text-xs text-slate-400 dark:text-slate-500">Netipováno</span>
+                  )}
+                </div>
+
+                {/* Status + datum */}
+                <div className="flex items-center justify-between mb-4 pr-20">
                   <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${isFinished ? 'bg-emerald-500' : locked ? 'bg-amber-500' : 'bg-blue-500'}`}></span>
-                    <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                      {isFinished ? 'Dokončeno' : locked ? 'Zamčeno' : 'Otevřeno'}
+                    <span className={`w-2 h-2 rounded-full ${status.dot}`}></span>
+                    <span className={`text-xs font-semibold uppercase tracking-wider ${status.color}`}>
+                      {status.text}
                     </span>
                   </div>
                   <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(match.kickoff_at).toLocaleString('cs-CZ')}</span>
                 </div>
 
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex-1 min-w-0 text-center">
-                    <div className="inline-flex items-center justify-center gap-2 whitespace-nowrap">
-                      <span className="text-2xl leading-none flex-shrink-0">{getFlag(match.home_team_name)}</span>
-                      <span className="text-lg font-bold text-slate-900 dark:text-white">{match.home_team_name}</span>
-                      <span className="text-slate-300 dark:text-slate-600 font-bold mx-1">vs</span>
-                      <span className="text-lg font-bold text-slate-900 dark:text-white">{match.away_team_name}</span>
-                      <span className="text-2xl leading-none flex-shrink-0">{getFlag(match.away_team_name)}</span>
+                {/* Týmy – na střed */}
+                <div className="flex items-center justify-center gap-3 pr-16">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 dark:border-dark-border flex-shrink-0 bg-white">
+                      <Image src={getFlag(match.home_team_name)} alt={match.home_team_name} width={40} height={40} className="w-full h-full object-cover" />
                     </div>
-                    {isFinished && match.home_score_regular !== null && (
-                      <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                        Výsledek: {match.home_score_regular} : {match.away_score_regular}
-                      </div>
-                    )}
+                    <span className="text-base font-bold text-slate-900 dark:text-white">{match.home_team_name}</span>
                   </div>
-
-                  <div className="flex-shrink-0 flex flex-col items-end gap-2">
-                    {pred && (
-                      <div className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">
-                        {pred.predicted_home_score}<span className="text-slate-300 dark:text-slate-600 mx-1">:</span>{pred.predicted_away_score}
-                      </div>
-                    )}
-                    {hasPoints && (
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${pred.points === 0 ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400' : pred.points === 1 ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' : 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300'}`}>
-                        {pred.points} {pred.points === 1 ? 'bod' : pred.points && pred.points > 1 && pred.points < 5 ? 'body' : 'bodů'}
-                      </span>
-                    )}
-                    {isFinished && pred && !hasPoints && (
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400">Netipováno</span>
-                    )}
+                  <span className="text-sm font-bold text-slate-300 dark:text-slate-600 mx-1">vs</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-bold text-slate-900 dark:text-white">{match.away_team_name}</span>
+                    <div className="w-10 h-10 rounded-full overflow-hidden border border-slate-200 dark:border-dark-border flex-shrink-0 bg-white">
+                      <Image src={getFlag(match.away_team_name)} alt={match.away_team_name} width={40} height={40} className="w-full h-full object-cover" />
+                    </div>
                   </div>
                 </div>
+
+                {/* Výsledek zápasu */}
+                {isFinished && match.home_score_regular !== null && (
+                  <div className="text-center mt-3 text-sm font-bold text-status-finished">
+                    Výsledek: {match.home_score_regular} : {match.away_score_regular}
+                  </div>
+                )}
               </div>
 
+              {/* Vsázka */}
               {!locked && !isFinished && (
-                <div className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-700/50 flex justify-center">
+                <div className="px-5 py-4 bg-slate-50 dark:bg-dark-bg/50 border-t border-slate-100 dark:border-dark-border flex justify-center">
                   <TipForm matchId={match.id} current={pred} onSubmit={submitTip} />
                 </div>
               )}
@@ -177,12 +174,12 @@ function TipForm({ matchId, current, onSubmit }: { matchId: string, current?: Pr
 
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSubmit(matchId, Number(home), Number(away)) }} className="flex items-center gap-3">
-      <div className="flex items-center gap-2 bg-white dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 p-1 shadow-sm">
-        <input type="number" min={0} required placeholder="0" className="w-16 p-2 border-0 rounded-lg text-center font-bold text-slate-700 dark:text-white bg-transparent focus:ring-2 focus:ring-blue-500 outline-none" value={home} onChange={e => setHome(e.target.value)} />
+      <div className="flex items-center gap-2 bg-white dark:bg-dark-card rounded-xl border border-slate-200 dark:border-dark-border p-1 shadow-sm">
+        <input type="number" min={0} required placeholder="0" className="w-16 p-2 border-0 rounded-lg text-center font-bold text-slate-900 dark:text-white bg-transparent focus:ring-2 focus:ring-primary-blue outline-none" value={home} onChange={e => setHome(e.target.value)} />
         <span className="text-slate-400 font-bold">:</span>
-        <input type="number" min={0} required placeholder="0" className="w-16 p-2 border-0 rounded-lg text-center font-bold text-slate-700 dark:text-white bg-transparent focus:ring-2 focus:ring-blue-500 outline-none" value={away} onChange={e => setAway(e.target.value)} />
+        <input type="number" min={0} required placeholder="0" className="w-16 p-2 border-0 rounded-lg text-center font-bold text-slate-900 dark:text-white bg-transparent focus:ring-2 focus:ring-primary-blue outline-none" value={away} onChange={e => setAway(e.target.value)} />
       </div>
-      <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm hover:shadow">
+      <button type="submit" className="bg-primary-blue hover:bg-royal-blue dark:bg-dark-primary dark:hover:bg-blue-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm">
         {current ? 'Upravit tip' : 'Vsadit'}
       </button>
     </form>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 20 20">
+  <!-- Generator: Adobe Illustrator 30.4.0, SVG Export Plug-In . SVG Version: 2.1.4 Build 226)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: none;
+        stroke: #2b3952;
+        stroke-miterlimit: 10;
+        stroke-width: 1.1px;
+      }
+
+      .st1 {
+        display: none;
+      }
+    </style>
+  </defs>
+  <g id="Vrstva_1" class="st1">
+    <rect class="st0" x=".8" y="4.18" width="18.54" height="12.05" rx="2" ry="2"/>
+    <polyline class="st0" points="1.69 4.86 10.06 12.39 18.33 4.76"/>
+  </g>
+  <g id="Vrstva_2">
+    <path class="st0" d="M15.55,6.95c1.03.08,1.83.95,1.83,1.99v7.75c0,1.1-.89,2-2,2H4.67c-1.1,0-2-.9-2-2v-7.75c0-1.08.87-1.97,1.94-2"/>
+    <path class="st0" d="M15.55,6.95c-.06-.01-.11-.01-.17-.01H4.61c.07-3.25,2.49-5.86,5.47-5.86s5.41,2.61,5.47,5.87Z"/>
+  </g>
+</svg>
