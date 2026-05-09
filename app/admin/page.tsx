@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useTheme } from '@/components/theme-provider'
-import { getFlag } from '@/lib/flags'
+import { getFlagPath, getFlagCode } from '@/lib/flags'
 
 type Match = {
   id: string
@@ -23,6 +24,36 @@ type Tournament = {
   season_year: number
   status: string
   is_active: boolean
+}
+
+// WEBP vlajka s error fallbackem
+function TeamFlag({ teamName, size = 24 }: { teamName: string; size?: number }) {
+  const [error, setError] = useState(false)
+  
+  if (error) {
+    const code = getFlagCode(teamName)
+    return (
+      <span 
+        className="inline-flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-600 text-xs font-bold text-slate-700 dark:text-slate-300"
+        style={{ width: size, height: size }}
+        title={teamName}
+      >
+        {code.toUpperCase()}
+      </span>
+    )
+  }
+
+  return (
+    <Image
+      src={getFlagPath(teamName)}
+      alt={teamName}
+      width={size}
+      height={size}
+      className="inline-block rounded-full object-cover"
+      unoptimized={true}
+      onError={() => setError(true)}
+    />
+  )
 }
 
 export default function AdminPage() {
@@ -88,7 +119,7 @@ export default function AdminPage() {
       kickoff_at: kickoff, status: 'scheduled'
     })
     if (error) setMessage('Chyba: ' + error.message)
-    else { setMessage('Zápas přidán! ✅'); setNewMatch({ home: '', away: '', date: '', time: '16:20' }); setShowAddForm(false); loadData() }
+    else { setMessage('Zápas přidán!'); setNewMatch({ home: '', away: '', date: '', time: '16:20' }); setShowAddForm(false); loadData() }
   }
 
   async function createTournament(e: React.FormEvent) {
@@ -99,7 +130,7 @@ export default function AdminPage() {
       status: 'draft', is_active: false, created_by: user?.id
     })
     if (error) setMessage('Chyba: ' + error.message)
-    else { setMessage('Turnaj vytvořen! ✅'); setShowNewTournament(false); setNewTournament({ name: '', sport: 'ice_hockey', season_year: 2026 }); loadData() }
+    else { setMessage('Turnaj vytvořen!'); setShowNewTournament(false); setNewTournament({ name: '', sport: 'ice_hockey', season_year: 2026 }); loadData() }
   }
 
   async function activateTournament(id: string) {
@@ -123,7 +154,9 @@ export default function AdminPage() {
   if (isAdmin === false) return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
       <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-lg text-center max-w-md border border-slate-200 dark:border-slate-700">
-        <div className="text-4xl mb-4">🔒</div>
+        <div className="flex justify-center mb-4">
+          <Image src="/icons/lock.webp" alt="Přístup odepřen" width={48} height={48} className="dark:invert" unoptimized={true} />
+        </div>
         <h1 className="text-2xl font-bold mb-2 text-slate-900 dark:text-white">Přístup odepřen</h1>
         <Link href="/" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">Zpět na úvod</Link>
       </div>
@@ -136,13 +169,18 @@ export default function AdminPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
       <nav className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-3 flex gap-4 items-center">
-          <span className="font-bold text-lg text-slate-900 dark:text-white tracking-tight">⚡ Admin</span>
+          <span className="font-bold text-lg text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+            <Image src="/icons/admin.webp" alt="Admin" width={20} height={20} className="dark:invert" unoptimized={true} />
+            Admin
+          </span>
           <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
             <button onClick={() => setActiveTab('matches')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${activeTab === 'matches' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>Zápasy</button>
             <button onClick={() => { setActiveTab('leaderboard'); loadLeaderboard() }} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${activeTab === 'leaderboard' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'}`}>Žebříček</button>
           </div>
           <div className="ml-auto flex gap-3 items-center">
-            <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition">{theme === 'light' ? '🌙' : '☀️'}</button>
+            <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+              <Image src={theme === 'light' ? '/icons/moon.webp' : '/icons/sun.webp'} alt="Theme" width={20} height={20} className="dark:invert" unoptimized={true} />
+            </button>
             <Link href="/dashboard" className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">Hráč</Link>
             <form action="/api/auth/logout" method="post"><button type="submit" className="text-sm bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 px-3 py-1.5 rounded-md transition">Odhlásit</button></form>
           </div>
@@ -155,7 +193,10 @@ export default function AdminPage() {
         <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm mb-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-bold text-slate-900 dark:text-white">Turnaje</h2>
-            <button onClick={() => setShowNewTournament(!showNewTournament)} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition">➕ Nový turnaj</button>
+            <button onClick={() => setShowNewTournament(!showNewTournament)} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition flex items-center gap-1">
+              <Image src="/icons/add-plus.webp" alt="" width={14} height={14} className="invert" unoptimized={true} />
+              Nový turnaj
+            </button>
           </div>
           
           {showNewTournament && (
@@ -163,8 +204,8 @@ export default function AdminPage() {
               <input required placeholder="Název turnaje" className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" value={newTournament.name} onChange={e => setNewTournament({...newTournament, name: e.target.value})} />
               <div className="grid grid-cols-2 gap-3">
                 <select className="p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none" value={newTournament.sport} onChange={e => setNewTournament({...newTournament, sport: e.target.value})}>
-                  <option value="ice_hockey">🏒 Hokej</option>
-                  <option value="football">⚽ Fotbal</option>
+                  <option value="ice_hockey">Hokej</option>
+                  <option value="football">Fotbal</option>
                 </select>
                 <input type="number" placeholder="Rok" className="p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" value={newTournament.season_year} onChange={e => setNewTournament({...newTournament, season_year: Number(e.target.value)})} />
               </div>
@@ -175,7 +216,7 @@ export default function AdminPage() {
           <div className="flex flex-wrap gap-2">
             {tournaments.map(t => (
               <button key={t.id} onClick={() => { setSelectedTournament(t.id); loadData(); }} className={`px-4 py-2 rounded-xl text-sm font-medium transition border ${selectedTournament === t.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-blue-400'}`}>
-                {t.name} {t.is_active ? '✓' : ''}
+                {t.name} {t.is_active ? '(Aktivní)' : ''}
               </button>
             ))}
           </div>
@@ -198,8 +239,9 @@ export default function AdminPage() {
             <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm mb-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-bold text-slate-900 dark:text-white">Správa zápasů</h2>
-                <button onClick={() => setShowAddForm(!showAddForm)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition">
-                  {showAddForm ? 'Zavřít' : '➕ Přidat zápas'}
+                <button onClick={() => setShowAddForm(!showAddForm)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-1">
+                  <Image src={showAddForm ? '/icons/close-x.webp' : '/icons/add-plus.webp'} alt="" width={14} height={14} className="invert" unoptimized={true} />
+                  {showAddForm ? 'Zavřít' : 'Přidat zápas'}
                 </button>
               </div>
 
@@ -288,15 +330,17 @@ function MatchCard({ match, onRefresh, setMessage, isDeleting, onConfirmDelete, 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${isFinished ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>{isFinished ? '✅ Dokončeno' : '🟡 Naplánováno'}</span>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${isFinished ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>
+              {isFinished ? 'Dokončeno' : 'Naplánováno'}
+            </span>
             <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(match.kickoff_at).toLocaleString('cs-CZ')}</span>
           </div>
           <div className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
-            <span className="text-2xl leading-none">{getFlag(match.home_team_name)}</span>
+            <TeamFlag teamName={match.home_team_name} size={24} />
             <span>{match.home_team_name}</span>
             <span className="text-slate-300 dark:text-slate-600">vs</span>
             <span>{match.away_team_name}</span>
-            <span className="text-2xl leading-none">{getFlag(match.away_team_name)}</span>
+            <TeamFlag teamName={match.away_team_name} size={24} />
           </div>
         </div>
 
@@ -311,8 +355,16 @@ function MatchCard({ match, onRefresh, setMessage, isDeleting, onConfirmDelete, 
             <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{match.home_score_regular} : {match.away_score_regular}</div>
           )}
 
-          {(!isFinished || editing) && <button onClick={saveResult} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-50">{saving ? '...' : 'Uložit'}</button>}
-          {isFinished && !editing && <button onClick={() => setEditing(true)} className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg text-sm transition">✏️</button>}
+          {(!isFinished || editing) && (
+            <button onClick={saveResult} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-50">
+              {saving ? '...' : 'Uložit'}
+            </button>
+          )}
+          {isFinished && !editing && (
+            <button onClick={() => setEditing(true)} className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg text-sm transition flex items-center gap-1">
+              <Image src="/icons/edit-pencil.webp" alt="Edit" width={14} height={14} className="invert" unoptimized={true} />
+            </button>
+          )}
           
           {isDeleting ? (
             <div className="flex gap-2">
@@ -320,7 +372,9 @@ function MatchCard({ match, onRefresh, setMessage, isDeleting, onConfirmDelete, 
               <button onClick={onCancelDelete} className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-3 py-2 rounded-lg text-sm transition">Zrušit</button>
             </div>
           ) : (
-            <button onClick={onConfirmDelete} className="text-slate-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition">🗑️</button>
+            <button onClick={onConfirmDelete} className="text-slate-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition">
+              <Image src="/icons/delete-trash.webp" alt="Smazat" width={18} height={18} unoptimized={true} />
+            </button>
           )}
         </div>
       </div>

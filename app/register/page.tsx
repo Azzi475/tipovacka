@@ -3,6 +3,8 @@
 import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import Image from 'next/image'
+import { useTheme } from '@/components/theme-provider'
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ first_name: '', last_name: '', nickname: '', email: '', password: '' })
@@ -15,6 +17,7 @@ export default function RegisterPage() {
     password: useRef<HTMLInputElement>(null),
   }
   const supabase = createClient()
+  const { theme } = useTheme()
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,47 +45,113 @@ export default function RegisterPage() {
     else window.location.href = '/login'
   }
 
+  // Dynamická cesta k logu podle tématu
+  const logoSrc = theme === 'dark' 
+    ? '/images/logo-trophy-dark.webp' 
+    : '/images/logo-trophy-light.webp'
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center px-4 py-8">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-8 transition-colors duration-300">
         <div className="text-center mb-8">
-          <div className="text-4xl mb-3">📝</div>
-          <h1 className="text-2xl font-bold text-slate-800">Registrace</h1>
-          <p className="text-slate-500 text-sm mt-1">Vytvořte si účet a začněte tipovat</p>
+          {/* OPRAVA: WEBP logo s dark/light theme a unoptimized */}
+          <div className="flex justify-center mb-3">
+            <Image 
+              src={logoSrc}
+              alt="Tipovačka" 
+              width={64} 
+              height={64} 
+              className="rounded-full"
+              unoptimized={true}
+              priority
+            />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white transition-colors">Registrace</h1>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 transition-colors">Vytvořte si účet a začněte tipovat</p>
         </div>
         
-        {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg text-sm transition-colors">
+            {error}
+          </div>
+        )}
         
         <form onSubmit={handleRegister} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Jméno</label>
-              <input ref={refs.first_name} name="first_name" required className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" value={form.first_name} onChange={e => setForm({...form, first_name: e.target.value})} />
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 transition-colors">Jméno</label>
+              <input 
+                ref={refs.first_name} 
+                name="first_name" 
+                required 
+                className="w-full p-3 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-white dark:bg-slate-700 text-slate-900 dark:text-white" 
+                value={form.first_name} 
+                onChange={e => setForm({...form, first_name: e.target.value})} 
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Příjmení</label>
-              <input ref={refs.last_name} name="last_name" required className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" value={form.last_name} onChange={e => setForm({...form, last_name: e.target.value})} />
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 transition-colors">Příjmení</label>
+              <input 
+                ref={refs.last_name} 
+                name="last_name" 
+                required 
+                className="w-full p-3 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-white dark:bg-slate-700 text-slate-900 dark:text-white" 
+                value={form.last_name} 
+                onChange={e => setForm({...form, last_name: e.target.value})} 
+              />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Přezdívka</label>
-            <input ref={refs.nickname} name="nickname" required className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" value={form.nickname} onChange={e => setForm({...form, nickname: e.target.value})} />
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 transition-colors">Přezdívka</label>
+            <input 
+              ref={refs.nickname} 
+              name="nickname" 
+              required 
+              className="w-full p-3 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-white dark:bg-slate-700 text-slate-900 dark:text-white" 
+              value={form.nickname} 
+              onChange={e => setForm({...form, nickname: e.target.value})} 
+            />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-            <input ref={refs.email} type="email" name="email" autoComplete="email" required className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 transition-colors">Email</label>
+            <input 
+              ref={refs.email} 
+              type="email" 
+              name="email" 
+              autoComplete="email" 
+              required 
+              className="w-full p-3 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-white dark:bg-slate-700 text-slate-900 dark:text-white" 
+              value={form.email} 
+              onChange={e => setForm({...form, email: e.target.value})} 
+            />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Heslo (min. 6 znaků)</label>
-            <input ref={refs.password} type="password" name="password" autoComplete="new-password" required minLength={6} className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" value={form.password} onChange={e => setForm({...form, password: e.target.value})} />
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 transition-colors">Heslo (min. 6 znaků)</label>
+            <input 
+              ref={refs.password} 
+              type="password" 
+              name="password" 
+              autoComplete="new-password" 
+              required 
+              minLength={6} 
+              className="w-full p-3 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition bg-white dark:bg-slate-700 text-slate-900 dark:text-white" 
+              value={form.password} 
+              onChange={e => setForm({...form, password: e.target.value})} 
+            />
           </div>
-          <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-lg font-semibold transition shadow-lg hover:shadow-xl">
+          <button 
+            type="submit" 
+            className="w-full bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600 text-white p-3 rounded-lg font-semibold transition shadow-lg hover:shadow-xl"
+          >
             Vytvořit účet
           </button>
         </form>
         
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Už máte účet? <Link href="/login" className="text-blue-600 hover:text-blue-700 font-semibold">Přihlásit se</Link>
+        <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400 transition-colors">
+          Už máte účet?{' '}
+          <Link href="/login" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-semibold transition-colors">
+            Přihlásit se
+          </Link>
         </p>
       </div>
     </div>
