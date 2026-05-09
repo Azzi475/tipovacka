@@ -45,7 +45,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <nav className="bg-white dark:bg-dark-card border-b border-slate-200 dark:border-dark-border sticky top-0 z-50 transition-colors duration-300">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Image src={theme === 'dark' ? '/images/logo-trophy-dark.png' : '/images/logo-trophy-light.png'} alt="Tipovačka" width={32} height={32} className="rounded-full" />
+            <Image src={theme === 'dark' ? '/images/logo-trophy-dark.svg' : '/images/logo-trophy-light.svg'} alt="Tipovačka" width={32} height={32} className="rounded-full" />
             <span className="font-bold text-lg text-slate-900 dark:text-white tracking-tight">Tipovačka</span>
           </div>
           <div className="flex items-center gap-2">
