@@ -1,6 +1,11 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
+  // DŮLEŽITÉ: Povolení statických WEBP/PNG souborů z public/
+  images: {
+    unoptimized: true,
+  },
+
   async headers() {
     return [
       {
