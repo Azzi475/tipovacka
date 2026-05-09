@@ -9,6 +9,7 @@ import { useTheme } from '@/components/theme-provider'
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const emailRef = useRef<HTMLInputElement>(null)
   const passwordRef = useRef<HTMLInputElement>(null)
@@ -19,7 +20,6 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
 
-    // Záloha pro Android autofill – přečteme hodnoty přímo z DOM
     const finalEmail = email || emailRef.current?.value || ''
     const finalPassword = password || passwordRef.current?.value || ''
 
@@ -37,75 +37,90 @@ export default function LoginPage() {
     else window.location.href = '/dashboard'
   }
 
-  // Dynamická cesta k logu podle tématu
-  const logoSrc = theme === 'dark' 
-    ? '/images/logo-trophy-dark.webp' 
-    : '/images/logo-trophy-light.webp'
+  const logoSrc = theme === 'dark' ? '/images/logo-trophy-dark.webp' : '/images/logo-trophy-light.webp'
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center px-4">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-8 transition-colors duration-300">
+    <div className="min-h-screen bg-bg-light dark:bg-bg-dark flex items-center justify-center px-4 py-12 transition-colors">
+      <div className="w-full max-w-sm">
+        {/* Logo */}
         <div className="text-center mb-8">
-          {/* OPRAVA: WEBP logo s dark/light theme a unoptimized */}
-          <div className="flex justify-center mb-3">
-            <Image 
-              src={logoSrc}
-              alt="Tipovačka" 
-              width={64} 
-              height={64} 
-              className="rounded-full"
-              unoptimized={true}
-              priority
-            />
+          <div className="flex justify-center mb-4">
+            <Image src={logoSrc} alt="Tipovačka" width={80} height={80} className="rounded-full" unoptimized={true} priority />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white transition-colors">Tipovačka</h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 transition-colors">Přihlaste se ke svému účtu</p>
+          <h1 className="text-2xl font-bold text-text-primary dark:text-white">Tipovačka</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Přihlaste se ke svému účtu</p>
         </div>
-        
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-lg text-sm transition-colors">
-            {error}
-          </div>
-        )}
-        
+
+        {/* Form */}
         <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 transition-colors">Email</label>
-            <input 
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+              <Image src="/icons/email.webp" alt="" width={20} height={20} className="dark:invert" unoptimized={true} />
+            </div>
+            <input
               ref={emailRef}
-              type="email" 
+              type="email"
               name="email"
               autoComplete="email"
-              required 
-              className="w-full p-3 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white dark:bg-slate-700 text-slate-900 dark:text-white" 
-              value={email} 
-              onChange={e => setEmail(e.target.value)} 
+              placeholder="Email"
+              required
+              className="input-field pl-12"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 transition-colors">Heslo</label>
-            <input 
+
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+              <Image src="/icons/lock.webp" alt="" width={20} height={20} className="dark:invert" unoptimized={true} />
+            </div>
+            <input
               ref={passwordRef}
-              type="password" 
+              type={showPassword ? 'text' : 'password'}
               name="password"
               autoComplete="current-password"
-              required 
-              className="w-full p-3 border border-slate-200 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition bg-white dark:bg-slate-700 text-slate-900 dark:text-white" 
-              value={password} 
-              onChange={e => setPassword(e.target.value)} 
+              placeholder="Heslo"
+              required
+              className="input-field pl-12 pr-12"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <Image 
+                src={showPassword ? '/icons/eye-open.webp' : '/icons/eye-closed.webp'} 
+                alt="" 
+                width={20} 
+                height={20} 
+                className="dark:invert"
+                unoptimized={true}
+              />
+            </button>
           </div>
-          <button 
-            type="submit" 
-            className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white p-3 rounded-lg font-semibold transition shadow-lg hover:shadow-xl"
-          >
+
+          <div className="flex items-center justify-between text-sm">
+            <label className="flex items-center gap-2 text-gray-600 dark:text-gray-300 cursor-pointer">
+              <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-primary-blue focus:ring-primary-blue" />
+              Zapamatovat si mě
+            </label>
+            <Link href="/forgot-password" className="text-primary-blue dark:text-secondary-dark hover:underline">
+              Zapomenuté heslo?
+            </Link>
+          </div>
+
+          {error && <p className="text-sm text-red-500 text-center">{error}</p>}
+
+          <button type="submit" className="btn-primary w-full">
             Přihlásit se
           </button>
         </form>
-        
-        <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400 transition-colors">
+
+        <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
           Nemáte účet?{' '}
-          <Link href="/register" className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-semibold transition-colors">
+          <Link href="/register" className="text-primary-blue dark:text-secondary-dark font-semibold hover:underline">
             Registrovat se
           </Link>
         </p>

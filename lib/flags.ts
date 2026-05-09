@@ -1,5 +1,3 @@
-// lib/flags.ts
-
 export const teamFlags: Record<string, string> = {
   "Česko": "cz", "Czech Republic": "cz", "CZE": "cz",
   "Švédsko": "se", "Sweden": "se", "SWE": "se",
@@ -24,19 +22,16 @@ export const teamFlags: Record<string, string> = {
   "Kazachstán": "kz", "Kazakhstan": "kz", "KAZ": "kz",
 }
 
-// Původní funkce (pro zpětnou kompatibilitu)
-export function getFlag(teamName: string): string {
-  const code = teamFlags[teamName] || teamName.toLowerCase().slice(0, 2)
-  return `/flags/${code}.webp` // nebo původní emoji logika
-}
-
-// NOVÉ: Pro Image komponentu
 export function getFlagPath(teamName: string): string {
   const code = teamFlags[teamName] || teamName.toLowerCase().slice(0, 2)
   return `/flags/${code}.webp`
 }
 
-// NOVÉ: Pro fallback
 export function getFlagCode(teamName: string): string {
   return teamFlags[teamName] || teamName.toLowerCase().slice(0, 2)
+}
+
+// Pro zpětnou kompatibilitu
+export function getFlag(teamName: string): string {
+  return getFlagPath(teamName)
 }
