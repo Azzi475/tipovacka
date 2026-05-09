@@ -16,21 +16,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMounted(true)
     const saved = localStorage.getItem('tipovacka-theme') as Theme
-    const root = document.documentElement
-    
     if (saved === 'dark') {
       setTheme('dark')
-      root.classList.add('dark')
+      document.documentElement.classList.add('dark')
     } else if (saved === 'light') {
       setTheme('light')
-      root.classList.remove('dark')
-    } else {
-      // Podle systému
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      if (prefersDark) {
-        setTheme('dark')
-        root.classList.add('dark')
-      }
+      document.documentElement.classList.remove('dark')
     }
   }, [])
 
@@ -38,12 +29,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const newTheme = theme === 'light' ? 'dark' : 'light'
     setTheme(newTheme)
     localStorage.setItem('tipovacka-theme', newTheme)
-    
-    const root = document.documentElement
     if (newTheme === 'dark') {
-      root.classList.add('dark')
+      document.documentElement.classList.add('dark')
     } else {
-      root.classList.remove('dark')
+      document.documentElement.classList.remove('dark')
     }
   }
 

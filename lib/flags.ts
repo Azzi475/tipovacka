@@ -53,5 +53,5 @@ export function getFlag(teamName: string): string {
   for (const [key, value] of Object.entries(flagMap)) {
     if (normalized.includes(key)) return value
   }
-  return '/flags/unknown.png'
+  return ''
 }
