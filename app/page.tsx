@@ -86,7 +86,7 @@ export default function HomePage() {
             icon="/icons/feature-chart-light.svg"
             iconDark="/icons/feature-chart-dark.svg"
             title="Žebříček"
-            description="Sleduj své umístění v reálném čase. Admin může žebříček uzavřít."
+            description="Sleduj své umístění!"
           />
         </div>
       </section>
