@@ -44,7 +44,7 @@ export default function RegisterPage() {
     else window.location.href = '/login'
   }
 
-  const logoSrc = theme === 'dark' ? '/images/logo-trophy-dark.webp' : '/images/logo-trophy-light.webp'
+  const logoSrc = theme === 'dark' ? '/icons/logo-trophy-dark.png' : '/icons/logo-trophy-light.png'
 
   return (
     <div className="min-h-screen bg-bg-light dark:bg-bg-dark flex items-center justify-center px-4 py-12 transition-colors">

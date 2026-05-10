@@ -3,7 +3,6 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* Light theme */
   --color-primary-blue: #2F6DF6;
   --color-royal-blue: #1D4ED8;
   --color-light-blue: #E9F1FF;
@@ -12,7 +11,6 @@
   --color-soft-teal: #E7FBF6;
   --color-text-primary: #0F172A;
   
-  /* Dark theme */
   --color-bg-dark: #0D1B33;
   --color-card-dark: #1A2740;
   --color-border-dark: #2B3952;
@@ -20,7 +18,6 @@
   --color-secondary-dark: #00C2FF;
   --color-teal-dark: #00E0C2;
   
-  /* Common */
   --color-white: #FFFFFF;
   --color-gray-100: #F1F5F9;
   --color-gray-200: #E2E8F0;
@@ -31,7 +28,6 @@
   --color-gray-700: #334155;
   --color-gray-800: #1E293B;
   
-  /* Medals */
   --color-gold: #FFD700;
   --color-silver: #C0C0C0;
   --color-bronze: #CD7F32;
@@ -40,7 +36,7 @@
 @layer base {
   body {
     @apply bg-bg-light text-text-primary antialiased;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-inter), 'Inter', system-ui, -apple-system, sans-serif;
   }
   
   .dark body {
@@ -67,6 +63,16 @@
     @apply bg-primary-dark hover:bg-secondary-dark;
   }
   
+  .btn-secondary {
+    @apply bg-light-blue text-primary-blue px-6 py-3 rounded-xl font-semibold text-base 
+           hover:bg-gray-200 transition-colors duration-200 
+           flex items-center justify-center gap-2;
+  }
+  
+  .dark .btn-secondary {
+    @apply bg-border-dark text-secondary-dark hover:bg-gray-700;
+  }
+  
   .input-field {
     @apply w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-text-primary
            focus:outline-none focus:ring-2 focus:ring-primary-blue focus:border-transparent
@@ -75,29 +81,5 @@
   
   .dark .input-field {
     @apply bg-card-dark border-border-dark text-white placeholder:text-gray-500;
-  }
-  
-  .status-chip-open {
-    @apply inline-flex items-center gap-1.5 text-xs font-semibold text-primary-blue;
-  }
-  
-  .dark .status-chip-open {
-    @apply text-secondary-dark;
-  }
-  
-  .status-dot {
-    @apply w-2 h-2 rounded-full bg-primary-blue;
-  }
-  
-  .dark .status-dot {
-    @apply bg-secondary-dark;
-  }
-  
-  .team-flag {
-    @apply w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm;
-  }
-  
-  .dark .team-flag {
-    @apply border-border-dark;
   }
 }

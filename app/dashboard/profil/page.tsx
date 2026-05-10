@@ -1,66 +1,177 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 
-export default function ProfilPage() {
-  const supabase = createClient()
-  const [profile, setProfile] = useState<any>(null)
+interface Profile {
+  first_name: string
+  last_name: string
+  nickname: string
+  email: string
+}
+
+export default function ProfilePage() {
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const [passwords, setPasswords] = useState({ new: '', confirm: '' })
 
   useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-        setProfile(data)
-      }
-      setLoading(false)
-    }
-    load()
-  }, [supabase])
+    loadProfile()
+  }, [])
 
-  const updateProfile = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!profile) return
-    const { error } = await supabase.from('profiles').update({
-      first_name: profile.first_name,
-      last_name: profile.last_name,
-      nickname: profile.nickname
-    }).eq('id', profile.id)
-    if (error) setMessage('Chyba: ' + error.message)
-    else setMessage('Profil uložen! ✅')
+  async function loadProfile() {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+
+    setProfile(data)
+    setLoading(false)
   }
 
-  if (loading) return <div className="p-8 text-center text-slate-500 dark:text-slate-400">Načítání...</div>
-  if (!profile) return <div className="p-8 text-center text-slate-400">Nepřihlášen</div>
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setMessage('')
+
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        first_name: profile?.first_name,
+        last_name: profile?.last_name,
+        nickname: profile?.nickname,
+      })
+      .eq('id', user.id)
+
+    if (error) setMessage('Chyba při ukládání')
+    else setMessage('Profil uložen')
+    setSaving(false)
+  }
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (passwords.new !== passwords.confirm) {
+      setMessage('Hesla se neshodují')
+      return
+    }
+
+    const supabase = createClient()
+    const { error } = await supabase.auth.updateUser({ password: passwords.new })
+
+    if (error) setMessage('Chyba při změně hesla')
+    else {
+      setMessage('Heslo změněno')
+      setPasswords({ new: '', confirm: '' })
+    }
+  }
+
+  if (loading) return <div className="text-center py-8">Načítání...</div>
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Profil</h1>
-      {message && <div className="mb-4 p-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-xl text-sm font-medium">{message}</div>}
+    <div className="py-4 space-y-6">
+      <h2 className="text-[32px] leading-[40px] font-semibold text-text-primary dark:text-white">
+        Profil
+      </h2>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm mb-6">
-        <h2 className="font-bold text-slate-900 dark:text-white mb-4">Osobní údaje</h2>
-        <form onSubmit={updateProfile} className="space-y-4">
+      <form onSubmit={handleUpdateProfile} className="card p-6 space-y-4">
+        <h3 className="text-lg font-semibold text-text-primary dark:text-white flex items-center gap-2">
+          <Image src="/icons/edit-pencil-light.svg" alt="" width={20} height={20} className="dark:hidden" unoptimized={true} />
+          <Image src="/icons/edit-pencil-dark.svg" alt="" width={20} height={20} className="hidden dark:block" unoptimized={true} />
+          Osobní údaje
+        </h3>
+
+        <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Přezdívka</label>
-            <input className="w-full p-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 dark:text-white" value={profile.nickname || ''} onChange={e => setProfile({...profile, nickname: e.target.value})} />
+            <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">Jméno</label>
+            <input
+              type="text"
+              value={profile?.first_name || ''}
+              onChange={(e) => setProfile(p => p ? { ...p, first_name: e.target.value } : null)}
+              className="input-field"
+            />
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Jméno</label>
-              <input className="w-full p-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 dark:text-white" value={profile.first_name || ''} onChange={e => setProfile({...profile, first_name: e.target.value})} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Příjmení</label>
-              <input className="w-full p-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 dark:text-white" value={profile.last_name || ''} onChange={e => setProfile({...profile, last_name: e.target.value})} />
-            </div>
+          <div>
+            <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">Příjmení</label>
+            <input
+              type="text"
+              value={profile?.last_name || ''}
+              onChange={(e) => setProfile(p => p ? { ...p, last_name: e.target.value } : null)}
+              className="input-field"
+            />
           </div>
-          <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold transition">Uložit změny</button>
-        </form>
-      </div>
+        </div>
+
+        <div>
+          <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">Přezdívka</label>
+          <input
+            type="text"
+            value={profile?.nickname || ''}
+            onChange={(e) => setProfile(p => p ? { ...p, nickname: e.target.value } : null)}
+            className="input-field"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">Email</label>
+          <input type="email" value={profile?.email || ''} disabled className="input-field opacity-50" />
+        </div>
+
+        {message && (
+          <p className={`text-sm text-center ${message.includes('Chyba') ? 'text-red-500' : 'text-teal'}`}>
+            {message}
+          </p>
+        )}
+
+        <button type="submit" disabled={saving} className="btn-primary w-full">
+          <Image src="/icons/save-check-light.svg" alt="" width={16} height={16} className="dark:hidden" unoptimized={true} />
+          <Image src="/icons/save-check-dark.svg" alt="" width={16} height={16} className="hidden dark:block" unoptimized={true} />
+          {saving ? 'Ukládání...' : 'Uložit změny'}
+        </button>
+      </form>
+
+      <form onSubmit={handleChangePassword} className="card p-6 space-y-4">
+        <h3 className="text-lg font-semibold text-text-primary dark:text-white flex items-center gap-2">
+          <Image src="/icons/lock-light.svg" alt="" width={20} height={20} className="dark:hidden" unoptimized={true} />
+          <Image src="/icons/lock-dark.svg" alt="" width={20} height={20} className="hidden dark:block" unoptimized={true} />
+          Změna hesla
+        </h3>
+
+        <input
+          type="password"
+          placeholder="Nové heslo"
+          value={passwords.new}
+          onChange={(e) => setPasswords(p => ({ ...p, new: e.target.value }))}
+          className="input-field"
+          minLength={6}
+        />
+
+        <input
+          type="password"
+          placeholder="Potvrdit heslo"
+          value={passwords.confirm}
+          onChange={(e) => setPasswords(p => ({ ...p, confirm: e.target.value }))}
+          className="input-field"
+        />
+
+        <button type="submit" className="btn-secondary w-full">
+          Změnit heslo
+        </button>
+      </form>
     </div>
   )
 }

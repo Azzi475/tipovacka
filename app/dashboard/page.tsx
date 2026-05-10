@@ -22,7 +22,6 @@ type Prediction = {
   points: number | null
 }
 
-// WEBP vlajka s fallbackem
 function TeamFlag({ teamName, size = 40 }: { teamName: string; size?: number }) {
   const [error, setError] = useState(false)
   
@@ -56,7 +55,6 @@ export default function TipsPage() {
   const [matches, setMatches] = useState<Match[]>([])
   const [predictions, setPredictions] = useState<Record<string, Prediction>>({})
   const [loading, setLoading] = useState(true)
-  const [userId, setUserId] = useState<string>('')
 
   useEffect(() => {
     loadData()
@@ -65,8 +63,10 @@ export default function TipsPage() {
   async function loadData() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    setUserId(user.id)
+    if (!user) {
+      setLoading(false)
+      return
+    }
 
     const { data: tournament } = await supabase
       .from('tournaments')
@@ -102,16 +102,37 @@ export default function TipsPage() {
 
   const handlePredict = async (matchId: string, home: number, away: number) => {
     const supabase = createClient()
+    
+    // Získáme aktuálního uživatele přímo zde - spolehlivější než stav
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      alert('Nejste přihlášeni')
+      return
+    }
+
+    // Ošetření NaN
+    const homeScore = isNaN(home) ? 0 : home
+    const awayScore = isNaN(away) ? 0 : away
+
     const { error } = await supabase
       .from('predictions')
       .upsert({
-        user_id: userId,
+        user_id: user.id,
         match_id: matchId,
-        predicted_home_score: home,
-        predicted_away_score: away,
+        predicted_home_score: homeScore,
+        predicted_away_score: awayScore,
+      }, {
+        onConflict: 'user_id,match_id' // Důležité pro správný upsert
       })
 
-    if (!error) loadData()
+    if (error) {
+      console.error('Chyba při ukládání tipu:', error)
+      alert('Chyba: ' + error.message)
+      return
+    }
+
+    // Po úspěšném uložení znovu načteme data
+    await loadData()
   }
 
   if (loading) return <div className="text-center py-8 text-gray-500">Načítání...</div>
@@ -148,24 +169,75 @@ function MatchCard({
   prediction?: Prediction
   onPredict: (id: string, h: number, a: number) => void
 }) {
-  const [homeScore, setHomeScore] = useState(prediction?.predicted_home_score?.toString() || '')
-  const [awayScore, setAwayScore] = useState(prediction?.predicted_away_score?.toString() || '')
+  // Inicializace pouze při mountu - uživatel může hodnoty měnit
+  const [homeScore, setHomeScore] = useState(() => prediction?.predicted_home_score?.toString() || '')
+  const [awayScore, setAwayScore] = useState(() => prediction?.predicted_away_score?.toString() || '')
   
   const isLocked = match.status !== 'scheduled'
   const isFinished = match.status === 'finished'
-  
-  const isOpen = match.status === 'scheduled'
   const hasPrediction = !!prediction
+
+  // Synchronizace pouze když se prediction změní zvenčí (např. po uložení z jiného zařízení)
+  // a lokální hodnoty jsou prázdné (nebyly editovány uživatelem)
+  useEffect(() => {
+    if (!homeScore && prediction?.predicted_home_score !== undefined) {
+      setHomeScore(prediction.predicted_home_score.toString())
+    }
+    if (!awayScore && prediction?.predicted_away_score !== undefined) {
+      setAwayScore(prediction.predicted_away_score.toString())
+    }
+  }, [prediction?.predicted_home_score, prediction?.predicted_away_score])
+
+  const getStatusIcon = () => {
+    if (isFinished) return '/icons/status-finished.svg'
+    if (isLocked) return '/icons/status-locked.svg'
+    return '/icons/status-open.svg'
+  }
+
+  const getStatusText = () => {
+    if (isFinished) return 'VYHODNOCENO'
+    if (isLocked) return 'ČEKÁ SE'
+    return 'OTEVŘENO'
+  }
+
+  const handleSubmit = () => {
+    const home = parseInt(homeScore)
+    const away = parseInt(awayScore)
+    onPredict(match.id, home, away)
+  }
 
   return (
     <div className="bg-white dark:bg-card-dark rounded-2xl border border-gray-200 dark:border-border-dark p-5 shadow-sm relative transition-colors">
-      {/* Status a datum */}
+      {/* Hlavička: Status + Tip badge + Datum */}
       <div className="flex items-center justify-between mb-4">
-        <div className="status-chip-open">
-          <span className="status-dot"></span>
-          OTEVŘENO
+        <div className="flex items-center gap-2">
+          <Image src={getStatusIcon()} alt={getStatusText()} width={16} height={16} unoptimized={true} />
+          <span className={`text-xs font-semibold uppercase tracking-wide ${
+            isFinished ? 'text-blue-600 dark:text-blue-400' : 
+            isLocked ? 'text-amber-600 dark:text-amber-400' : 
+            'text-primary-blue dark:text-secondary-dark'
+          }`}>
+            {getStatusText()}
+          </span>
         </div>
-        <span className="text-xs text-gray-500 dark:text-gray-400">
+
+        {/* VÝRAZNÝ TIP BADGE - napravo nahoře */}
+        {hasPrediction && (
+          <div className="flex items-center gap-1.5 bg-light-blue dark:bg-border-dark px-3 py-1.5 rounded-lg border border-primary-blue/20 dark:border-secondary-dark/20">
+            <Image src="/icons/target-light.svg" alt="" width={14} height={14} className="dark:hidden" unoptimized={true} />
+            <Image src="/icons/target-dark.svg" alt="" width={14} height={14} className="hidden dark:block" unoptimized={true} />
+            <span className="text-sm font-bold text-primary-blue dark:text-secondary-dark">
+              {prediction.predicted_home_score}:{prediction.predicted_away_score}
+            </span>
+            {prediction.points !== null && (
+              <span className="text-[10px] bg-primary-blue text-white px-1.5 py-0.5 rounded-md font-bold">
+                +{prediction.points}
+              </span>
+            )}
+          </div>
+        )}
+
+        <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
           {new Date(match.kickoff_at).toLocaleString('cs-CZ', {
             day: 'numeric',
             month: 'numeric',
@@ -177,15 +249,15 @@ function MatchCard({
       </div>
 
       {/* Týmy s vlajkami */}
-      <div className="flex items-center justify-center gap-3 mb-5">
-        <div className="flex items-center gap-2 flex-1 justify-end">
+      <div className="flex items-center justify-center gap-4 mb-5">
+        <div className="flex items-center gap-3 flex-1 justify-end">
           <span className="text-sm font-semibold text-text-primary dark:text-white text-right">{match.home_team_name}</span>
           <TeamFlag teamName={match.home_team_name} size={40} />
         </div>
 
         <span className="text-sm font-bold text-gray-400 dark:text-gray-500 px-2">VS</span>
 
-        <div className="flex items-center gap-2 flex-1 justify-start">
+        <div className="flex items-center gap-3 flex-1 justify-start">
           <TeamFlag teamName={match.away_team_name} size={40} />
           <span className="text-sm font-semibold text-text-primary dark:text-white">{match.away_team_name}</span>
         </div>
@@ -211,27 +283,19 @@ function MatchCard({
           className="w-14 h-12 text-center text-lg font-bold rounded-xl border-2 border-gray-200 dark:border-border-dark bg-white dark:bg-card-dark text-text-primary dark:text-white focus:border-primary-blue focus:outline-none disabled:opacity-50"
         />
         
-        {isOpen ? (
+        {!isLocked ? (
           <button
-            onClick={() => onPredict(match.id, parseInt(homeScore) || 0, parseInt(awayScore) || 0)}
-            className="bg-primary-blue hover:bg-royal-blue text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition-colors ml-2"
+            onClick={handleSubmit}
+            className="bg-primary-blue hover:bg-royal-blue text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition-colors ml-2 active:scale-95"
           >
             {hasPrediction ? 'Upravit tip' : 'Vsadit'}
           </button>
         ) : (
-          <div className="ml-2 px-4 py-2.5 text-sm font-semibold text-gray-500">
+          <div className="ml-2 px-4 py-2.5 text-sm font-semibold text-gray-500 dark:text-gray-400">
             {isFinished ? 'Vyhodnoceno' : 'Uzavřeno'}
           </div>
         )}
       </div>
-
-      {/* Zobrazení existujícího tipu */}
-      {prediction && !isFinished && (
-        <div className="mt-3 text-center text-xs text-gray-500 dark:text-gray-400">
-          Váš tip: {prediction.predicted_home_score}:{prediction.predicted_away_score}
-          {prediction.points !== null && <span className="ml-2 text-primary-blue dark:text-secondary-dark font-semibold">+{prediction.points} bodů</span>}
-        </div>
-      )}
     </div>
   )
 }

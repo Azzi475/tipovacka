@@ -1,5 +1,5 @@
 export const teamFlags: Record<string, string> = {
-  "Česko": "cz", "Czech Republic": "cz", "CZE": "cz",
+  "Česko": "cz", "Czech Republic": "cz", "CZE": "cz", "Czechia": "cz",
   "Švédsko": "se", "Sweden": "se", "SWE": "se",
   "Kanada": "ca", "Canada": "ca", "CAN": "ca",
   "USA": "us", "United States": "us",
@@ -31,7 +31,6 @@ export function getFlagCode(teamName: string): string {
   return teamFlags[teamName] || teamName.toLowerCase().slice(0, 2)
 }
 
-// Pro zpětnou kompatibilitu
 export function getFlag(teamName: string): string {
   return getFlagPath(teamName)
 }

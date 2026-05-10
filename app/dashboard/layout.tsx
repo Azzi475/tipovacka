@@ -9,7 +9,6 @@ import { useTheme } from '@/components/theme-provider'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
-  const [user, setUser] = useState<any>(null)
   const [stats, setStats] = useState({ points: 0, exact: 0 })
   const pathname = usePathname()
   const { theme, toggleTheme } = useTheme()
@@ -17,17 +16,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-      if (user) {
-        const { data: preds } = await supabase
-          .from('predictions')
-          .select('points, exact_hit')
-          .eq('user_id', user.id)
-          .not('points', 'is', null)
-        const points = preds?.reduce((sum, p) => sum + (p.points || 0), 0) || 0
-        const exact = preds?.filter(p => p.exact_hit === true).length || 0
-        setStats({ points, exact })
-      }
+      if (!user) return
+      const { data: preds } = await supabase
+        .from('predictions')
+        .select('points, exact_hit')
+        .eq('user_id', user.id)
+        .not('points', 'is', null)
+      const points = preds?.reduce((sum, p) => sum + (p.points || 0), 0) || 0
+      const exact = preds?.filter(p => p.exact_hit === true).length || 0
+      setStats({ points, exact })
     }
     load()
   }, [supabase, pathname])
@@ -39,7 +36,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { href: '/dashboard/profil', label: 'Profil', icon: 'nav-profile' },
   ]
 
-  const logoSrc = theme === 'dark' ? '/images/logo-trophy-dark.webp' : '/images/logo-trophy-light.webp'
+  const logoSrc = theme === 'dark' ? '/icons/logo-trophy-dark.png' : '/icons/logo-trophy-light.png'
 
   return (
     <div className="min-h-screen bg-bg-light dark:bg-bg-dark transition-colors duration-300 pb-24">
@@ -56,11 +53,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-border-dark transition text-gray-600 dark:text-gray-300"
             >
               <Image 
-                src={theme === 'light' ? '/icons/moon.webp' : '/icons/sun.webp'} 
+                src={theme === 'light' ? '/icons/theme-moon.svg' : '/icons/theme-sun.svg'} 
                 alt="Theme" 
                 width={20} 
                 height={20} 
-                className="dark:invert"
                 unoptimized={true} 
               />
             </button>
@@ -73,15 +69,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </nav>
 
-      {/* Statistiky pod nav */}
+      {/* Statistiky */}
       <div className="max-w-3xl mx-auto px-4 pt-4 flex gap-3">
         <div className="flex-1 bg-white dark:bg-card-dark rounded-xl p-3 border border-gray-200 dark:border-border-dark flex items-center justify-center gap-2 shadow-sm transition-colors">
-          <Image src={theme === 'dark' ? '/icons/star-dark.webp' : '/icons/star-light.webp'} alt="Body" width={20} height={20} unoptimized={true} />
+          <Image src={theme === 'dark' ? '/icons/star-dark.svg' : '/icons/star-light.svg'} alt="Body" width={20} height={20} unoptimized={true} />
           <span className="text-lg font-bold text-text-primary dark:text-white">{stats.points}</span>
           <span className="text-xs text-gray-500 dark:text-gray-400">bodů</span>
         </div>
         <div className="flex-1 bg-white dark:bg-card-dark rounded-xl p-3 border border-gray-200 dark:border-border-dark flex items-center justify-center gap-2 shadow-sm transition-colors">
-          <Image src={theme === 'dark' ? '/icons/target-dark.webp' : '/icons/target-light.webp'} alt="Přesné" width={20} height={20} unoptimized={true} />
+          <Image src={theme === 'dark' ? '/icons/target-dark.svg' : '/icons/target-light.svg'} alt="Přesné" width={20} height={20} unoptimized={true} />
           <span className="text-lg font-bold text-text-primary dark:text-white">{stats.exact}</span>
           <span className="text-xs text-gray-500 dark:text-gray-400">přesných</span>
         </div>
@@ -92,13 +88,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </main>
 
       {/* Spodní navigace */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-card-dark border-t border-gray-200 dark:border-border-dark z-50 transition-colors duration-300 pb-safe">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-card-dark border-t border-gray-200 dark:border-border-dark z-50 transition-colors duration-300">
         <div className="max-w-3xl mx-auto flex justify-around py-2">
           {navItems.map(item => {
             const isActive = pathname === item.href
             const iconSrc = isActive 
-              ? `${item.icon}-active.webp` 
-              : (theme === 'dark' ? `${item.icon}-dark.webp` : `${item.icon}-light.webp`)
+              ? `/icons/${item.icon}-active.svg` 
+              : (theme === 'dark' ? `/icons/${item.icon}-dark.svg` : `/icons/${item.icon}-light.svg`)
             return (
               <Link 
                 key={item.href} 

@@ -37,12 +37,11 @@ export default function LoginPage() {
     else window.location.href = '/dashboard'
   }
 
-  const logoSrc = theme === 'dark' ? '/images/logo-trophy-dark.webp' : '/images/logo-trophy-light.webp'
+  const logoSrc = theme === 'dark' ? '/icons/logo-trophy-dark.png' : '/icons/logo-trophy-light.png'
 
   return (
     <div className="min-h-screen bg-bg-light dark:bg-bg-dark flex items-center justify-center px-4 py-12 transition-colors">
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <Image src={logoSrc} alt="Tipovačka" width={80} height={80} className="rounded-full" unoptimized={true} priority />
@@ -51,11 +50,10 @@ export default function LoginPage() {
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Přihlaste se ke svému účtu</p>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div className="relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-              <Image src="/icons/email.webp" alt="" width={20} height={20} className="dark:invert" unoptimized={true} />
+              <Image src={theme === 'dark' ? '/icons/email-dark.svg' : '/icons/email-light.svg'} alt="" width={20} height={20} unoptimized={true} />
             </div>
             <input
               ref={emailRef}
@@ -72,7 +70,7 @@ export default function LoginPage() {
 
           <div className="relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-              <Image src="/icons/lock.webp" alt="" width={20} height={20} className="dark:invert" unoptimized={true} />
+              <Image src={theme === 'dark' ? '/icons/lock-dark.svg' : '/icons/lock-light.svg'} alt="" width={20} height={20} unoptimized={true} />
             </div>
             <input
               ref={passwordRef}
@@ -91,11 +89,13 @@ export default function LoginPage() {
               className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
               <Image 
-                src={showPassword ? '/icons/eye-open.webp' : '/icons/eye-closed.webp'} 
+                src={showPassword 
+                  ? (theme === 'dark' ? '/icons/eye-open-dark.svg' : '/icons/eye-open-light.svg')
+                  : (theme === 'dark' ? '/icons/eye-closed-dark.svg' : '/icons/eye-closed-light.svg')
+                } 
                 alt="" 
                 width={20} 
                 height={20} 
-                className="dark:invert"
                 unoptimized={true}
               />
             </button>

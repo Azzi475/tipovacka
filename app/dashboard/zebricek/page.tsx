@@ -37,18 +37,16 @@ export default function ZebricekPage() {
     load()
   }, [supabase])
 
-  if (loading) return <div className="p-8 text-center text-slate-500 dark:text-slate-400">Načítání...</div>
+  if (loading) return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Načítání...</div>
 
-  // Pokud je žebříček uzavřený, zobrazí se zpráva admina
   if (tournament?.leaderboard_closed) {
     return (
       <div>
         <h1 className="text-[32px] leading-[40px] font-semibold text-text-primary dark:text-white mb-6">Žebříček</h1>
         <div className="bg-white dark:bg-card-dark rounded-2xl p-8 border border-gray-200 dark:border-border-dark shadow-sm text-center">
-          {/* OPRAVA: WEBP trophy místo emoji */}
           <div className="flex justify-center mb-4">
             <Image 
-              src={theme === 'dark' ? '/images/logo-trophy-dark.webp' : '/images/logo-trophy-light.webp'}
+              src={theme === 'dark' ? '/icons/logo-trophy-dark.png' : '/icons/logo-trophy-light.png'}
               alt="Trophy"
               width={64}
               height={64}
@@ -56,7 +54,7 @@ export default function ZebricekPage() {
               unoptimized={true}
             />
           </div>
-          <p className="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+          <p className="text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
             {tournament.leaderboard_message || 'Žebříček je dočasně uzavřen.'}
           </p>
         </div>

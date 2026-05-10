@@ -11,7 +11,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Tipovačka",
-  description: "Tipování výsledků MS",
+  description: "Tipování výsledků MS ve fotbale a hokeji",
 };
 
 export default function RootLayout({
