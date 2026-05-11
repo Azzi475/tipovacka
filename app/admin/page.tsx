@@ -24,6 +24,8 @@ type Tournament = {
   season_year: number
   status: string
   is_active: boolean
+  leaderboard_closed: boolean
+  leaderboard_message: string | null
 }
 
 function TeamFlag({ teamName, size = 24 }: { teamName: string; size?: number }) {
@@ -47,6 +49,7 @@ export default function AdminPage() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
   const [matches, setMatches] = useState<Match[]>([])
   const [tournaments, setTournaments] = useState<Tournament[]>([])
+  const [currentTournament, setCurrentTournament] = useState<Tournament | null>(null)
   const [selectedTournament, setSelectedTournament] = useState<string>('')
   const [leaderboard, setLeaderboard] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState<'matches' | 'leaderboard'>('matches')
@@ -56,6 +59,7 @@ export default function AdminPage() {
   const [showNewTournament, setShowNewTournament] = useState(false)
   const [newMatch, setNewMatch] = useState({ home: '', away: '', date: '', time: '16:20' })
   const [newTournament, setNewTournament] = useState({ name: '', sport: 'ice_hockey', season_year: 2026 })
+  const [leaderboardMsg, setLeaderboardMsg] = useState('')
 
   useEffect(() => {
     async function check() {
@@ -74,6 +78,11 @@ export default function AdminPage() {
     const active = t?.find(x => x.is_active)
     const tid = selectedTournament || active?.id || (t?.[0]?.id)
     if (tid && !selectedTournament) setSelectedTournament(tid)
+    
+    const current = t?.find(x => x.id === tid) || null
+    setCurrentTournament(current)
+    if (current?.leaderboard_message) setLeaderboardMsg(current.leaderboard_message)
+    
     if (tid) {
       const { data } = await supabase.from('matches').select('*').eq('tournament_id', tid).order('kickoff_at', { ascending: true })
       setMatches(data || [])
@@ -82,17 +91,37 @@ export default function AdminPage() {
   }
 
   async function loadLeaderboard() {
-    const { data: preds } = await supabase.from('predictions').select('user_id, exact_hit').not('points', 'is', null)
+    const { data: preds } = await supabase.from('predictions').select('user_id, points, exact_hit').not('points', 'is', null)
     const { data: profs } = await supabase.from('profiles').select('id, nickname, first_name, last_name')
     if (!preds || !profs) { setLeaderboard([]); return }
     const map: Record<string, any> = {}
     profs.forEach((p: any) => map[p.id] = p)
     const grouped: Record<string, any> = {}
     preds.forEach((row: any) => {
-      if (!grouped[row.user_id]) grouped[row.user_id] = { user_id: row.user_id, profile: map[row.user_id], exact: 0 }
+      if (!grouped[row.user_id]) grouped[row.user_id] = { user_id: row.user_id, profile: map[row.user_id], exact: 0, points: 0 }
+      grouped[row.user_id].points += (row.points || 0)
       if (row.exact_hit) grouped[row.user_id].exact += 1
     })
-    setLeaderboard(Object.values(grouped).sort((a: any, b: any) => b.exact - a.exact))
+    setLeaderboard(Object.values(grouped).sort((a: any, b: any) => b.points - a.points))
+  }
+
+  async function toggleLeaderboard() {
+    if (!currentTournament) return
+    const newClosed = !currentTournament.leaderboard_closed
+    const { error } = await supabase
+      .from('tournaments')
+      .update({ 
+        leaderboard_closed: newClosed, 
+        leaderboard_message: leaderboardMsg || null 
+      })
+      .eq('id', currentTournament.id)
+    
+    if (error) {
+      setMessage('Chyba: ' + error.message)
+    } else {
+      setMessage(newClosed ? 'Žebříček uzavřen pro hráče' : 'Žebříček otevřen pro hráče')
+      setCurrentTournament({ ...currentTournament, leaderboard_closed: newClosed, leaderboard_message: leaderboardMsg })
+    }
   }
 
   async function addMatch(e: React.FormEvent) {
@@ -140,16 +169,13 @@ export default function AdminPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
       <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-lg text-center max-w-md border border-gray-200 dark:border-gray-700">
         <div className="flex justify-center mb-4">
-          <Image src="/icons/lock-light.svg" alt="Přístup odepřen" width={48} height={48} className="dark:hidden" unoptimized={true} />
-          <Image src="/icons/lock-dark.svg" alt="Přístup odepřen" width={48} height={48} className="hidden dark:block" unoptimized={true} />
+          <Image src={theme === 'dark' ? '/icons/lock-dark.svg' : '/icons/lock-light.svg'} alt="Přístup odepřen" width={48} height={48} unoptimized={true} />
         </div>
         <h1 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Přístup odepřen</h1>
         <Link href="/" className="text-blue-600 dark:text-blue-400 hover:underline font-medium">Zpět na úvod</Link>
       </div>
     </div>
   )
-
-  const currentTournament = tournaments.find(t => t.id === selectedTournament)
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
@@ -208,7 +234,7 @@ export default function AdminPage() {
           </div>
           
           {currentTournament && (
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex gap-2 flex-wrap">
               {currentTournament.status !== 'active' && currentTournament.status !== 'finished' && (
                 <button onClick={() => activateTournament(currentTournament.id)} className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-emerald-100 transition">Aktivovat</button>
               )}
@@ -256,7 +282,63 @@ export default function AdminPage() {
             </div>
           </div>
         ) : (
-          <LeaderboardTab leaderboard={leaderboard} />
+          <div className="space-y-6">
+            {/* Ovládání žebříčku pro admina */}
+            {currentTournament && (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm">
+                <h3 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                  <Image src={theme === 'dark' ? '/icons/nav-leaderboard-dark.svg' : '/icons/nav-leaderboard-light.svg'} alt="" width={20} height={20} unoptimized={true} />
+                  Nastavení žebříčku
+                </h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">
+                      Zpráva pro hráče (zobrazí se místo žebříčku)
+                    </label>
+                    <textarea
+                      value={leaderboardMsg}
+                      onChange={(e) => setLeaderboardMsg(e.target.value)}
+                      placeholder="Např.: Žebříček bude zveřejněn po skončení turnaje..."
+                      className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px] resize-y text-sm"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                      onClick={toggleLeaderboard}
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2 ${
+                        currentTournament.leaderboard_closed 
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                          : 'bg-amber-500 hover:bg-amber-600 text-white'
+                      }`}
+                    >
+                      <Image 
+                        src={currentTournament.leaderboard_closed ? '/icons/eye-open-light.svg' : '/icons/eye-closed-light.svg'} 
+                        alt="" 
+                        width={16} 
+                        height={16} 
+                        className="invert" 
+                        unoptimized={true} 
+                      />
+                      {currentTournament.leaderboard_closed ? 'Otevřít žebříček hráčům' : 'Uzavřít žebříček hráčům'}
+                    </button>
+                    
+                    <span className={`text-sm font-medium px-3 py-1.5 rounded-full ${
+                      currentTournament.leaderboard_closed 
+                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' 
+                        : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                    }`}>
+                      {currentTournament.leaderboard_closed ? '🔒 Uzavřeno pro hráče' : '👀 Viditelné pro hráče'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Žebříček - admin vidí vždy všechno */}
+            <LeaderboardTab leaderboard={leaderboard} />
+          </div>
         )}
       </main>
     </div>
@@ -362,8 +444,8 @@ function LeaderboardTab({ leaderboard }: { leaderboard: any[] }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
       <div className="p-6 border-b border-gray-100 dark:border-gray-700">
-        <h2 className="text-lg font-bold text-gray-900 dark:text-white">Žebříček</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Pořadí hráčů podle úspěšnosti</p>
+        <h2 className="text-lg font-bold text-gray-900 dark:text-white">Kompletní žebříček</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Admin vidí všechny hráče, body a přesné tipy</p>
       </div>
       <div className="divide-y divide-gray-100 dark:divide-gray-700">
         {leaderboard.length === 0 && <div className="p-8 text-center text-gray-400 dark:text-gray-500">Zatím žádná data</div>}
@@ -371,14 +453,22 @@ function LeaderboardTab({ leaderboard }: { leaderboard: any[] }) {
           const name = row.profile?.nickname || `${row.profile?.first_name || ''} ${row.profile?.last_name || ''}`.trim() || 'Neznámý'
           return (
             <div key={row.user_id} className="p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
-              <span className={`inline-flex items-center justify-center w-10 h-10 rounded-full font-bold text-sm ${idx === 0 ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' : idx === 1 ? 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300' : idx === 2 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
+              <span className={`inline-flex items-center justify-center w-10 h-10 rounded-full font-bold text-sm shrink-0 ${
+                idx === 0 ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' : 
+                idx === 1 ? 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300' : 
+                idx === 2 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' : 
+                'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+              }`}>
                 {idx + 1}.
               </span>
-              <div className="flex-1">
-                <div className="font-bold text-gray-900 dark:text-white">{name}</div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-gray-900 dark:text-white truncate">{name}</div>
                 {row.profile?.nickname && <div className="text-xs text-gray-500 dark:text-gray-400">{row.profile?.first_name} {row.profile?.last_name}</div>}
               </div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">{row.exact} přesných</div>
+              <div className="text-right shrink-0">
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{row.points} <span className="text-xs font-normal text-gray-500">bodů</span></div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{row.exact} přesných</div>
+              </div>
             </div>
           )
         })}

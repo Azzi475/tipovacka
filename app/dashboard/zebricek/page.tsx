@@ -18,7 +18,7 @@ export default function ZebricekPage() {
       setTournament(t)
 
       if (t && !t.leaderboard_closed) {
-        const { data: preds } = await supabase.from('predictions').select('user_id, exact_hit').not('points', 'is', null)
+        const { data: preds } = await supabase.from('predictions').select('user_id, points, exact_hit').not('points', 'is', null)
         const { data: profs } = await supabase.from('profiles').select('id, nickname, first_name, last_name')
         
         if (preds && profs) {
@@ -26,10 +26,11 @@ export default function ZebricekPage() {
           profs.forEach((p: any) => map[p.id] = p)
           const grouped: Record<string, any> = {}
           preds.forEach((row: any) => {
-            if (!grouped[row.user_id]) grouped[row.user_id] = { user_id: row.user_id, profile: map[row.user_id], exact: 0 }
+            if (!grouped[row.user_id]) grouped[row.user_id] = { user_id: row.user_id, profile: map[row.user_id], exact: 0, points: 0 }
+            grouped[row.user_id].points += (row.points || 0)
             if (row.exact_hit) grouped[row.user_id].exact += 1
           })
-          setLeaderboard(Object.values(grouped).sort((a: any, b: any) => b.exact - a.exact))
+          setLeaderboard(Object.values(grouped).sort((a: any, b: any) => b.points - a.points))
         }
       }
       setLoading(false)
@@ -39,6 +40,7 @@ export default function ZebricekPage() {
 
   if (loading) return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Načítání...</div>
 
+  // Uzavřený žebříček pro hráče
   if (tournament?.leaderboard_closed) {
     return (
       <div>
@@ -48,14 +50,15 @@ export default function ZebricekPage() {
             <Image 
               src={theme === 'dark' ? '/icons/logo-trophy-dark.png' : '/icons/logo-trophy-light.png'}
               alt="Trophy"
-              width={64}
-              height={64}
+              width={80}
+              height={80}
               className="rounded-full"
               unoptimized={true}
             />
           </div>
-          <p className="text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
-            {tournament.leaderboard_message || 'Žebříček je dočasně uzavřen.'}
+          <h2 className="text-xl font-bold text-text-primary dark:text-white mb-3">Žebříček je uzavřen</h2>
+          <p className="text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap text-base">
+            {tournament.leaderboard_message || 'Žebříček je dočasně uzavřen. Výsledky budou zveřejněny po skončení turnaje.'}
           </p>
         </div>
       </div>
@@ -69,7 +72,8 @@ export default function ZebricekPage() {
         <div className="p-4 bg-gray-50 dark:bg-border-dark/50 border-b border-gray-200 dark:border-border-dark">
           <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             <div className="col-span-2">#</div>
-            <div className="col-span-10">Hráč</div>
+            <div className="col-span-7">Hráč</div>
+            <div className="col-span-3 text-right">Body</div>
           </div>
         </div>
         <div className="divide-y divide-gray-100 dark:divide-border-dark">
@@ -80,7 +84,7 @@ export default function ZebricekPage() {
             const name = row.profile?.nickname || `${row.profile?.first_name || ''} ${row.profile?.last_name || ''}`.trim() || 'Neznámý'
             return (
               <div key={row.user_id} className="p-4 flex items-center hover:bg-gray-50 dark:hover:bg-border-dark/30 transition">
-                <div className="w-12">
+                <div className="w-12 shrink-0">
                   <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm ${
                     idx === 0 ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' : 
                     idx === 1 ? 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300' : 
@@ -90,11 +94,15 @@ export default function ZebricekPage() {
                     {idx + 1}
                   </span>
                 </div>
-                <div className="flex-1">
-                  <div className="font-bold text-text-primary dark:text-white">{name}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-text-primary dark:text-white truncate">{name}</div>
                   {row.profile?.nickname && (
                     <div className="text-xs text-gray-500 dark:text-gray-400">{row.profile?.first_name} {row.profile?.last_name}</div>
                   )}
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-lg font-bold text-primary-blue dark:text-secondary-dark">{row.points}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{row.exact} přesných</div>
                 </div>
               </div>
             )
