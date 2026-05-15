@@ -201,8 +201,8 @@ function MatchCard({
   }
 
   const getStatusText = () => {
-    if (isFinished) return 'VYHODNOCENO'
-    if (isLive || isTimeLocked) return 'ČEKÁ SE'
+    if (isFinished) return 'KONEC'
+    if (isLive || isTimeLocked) return 'UZAMČENO'
     return 'OTEVŘENO'
   }
 
