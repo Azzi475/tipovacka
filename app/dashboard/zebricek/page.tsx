@@ -15,7 +15,8 @@ export default function ZebricekPage() {
   useEffect(() => {
     async function load() {
       try {
-        // Načtení aktivního turnaje
+        const { data: { user } } = await supabase.auth.getUser()
+
         const { data: t } = await supabase
           .from('tournaments')
           .select('*')
@@ -25,7 +26,6 @@ export default function ZebricekPage() {
         setTournament(t)
 
         if (t && !t.leaderboard_closed) {
-          // Načtení všech predictions s body
           const { data: preds } = await supabase
             .from('predictions')
             .select('user_id, points, exact_hit')
@@ -100,11 +100,11 @@ export default function ZebricekPage() {
     <div>
       <h1 className="text-[32px] leading-[40px] font-semibold text-text-primary dark:text-white mb-6">Žebříček</h1>
       <div className="bg-white dark:bg-card-dark rounded-2xl shadow-sm border border-gray-200 dark:border-border-dark overflow-hidden">
+        {/* Hlavička tabulky - pouze # a Hráč */}
         <div className="p-4 bg-gray-50 dark:bg-border-dark/50 border-b border-gray-200 dark:border-border-dark">
           <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             <div className="col-span-2">#</div>
-            <div className="col-span-7">Hráč</div>
-            <div className="col-span-3 text-right">Body</div>
+            <div className="col-span-10">Hráč</div>
           </div>
         </div>
         <div className="divide-y divide-gray-100 dark:divide-border-dark">
@@ -132,10 +132,6 @@ export default function ZebricekPage() {
                   {row.profile?.nickname && (
                     <div className="text-xs text-gray-500 dark:text-gray-400">{row.profile?.first_name} {row.profile?.last_name}</div>
                   )}
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-lg font-bold text-primary-blue dark:text-secondary-dark">{row.points}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">{row.exact} přesných</div>
                 </div>
               </div>
             )

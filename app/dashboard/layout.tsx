@@ -15,16 +15,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data: preds } = await supabase
-        .from('predictions')
-        .select('points, exact_hit')
-        .eq('user_id', user.id)
-        .not('points', 'is', null)
-      const points = preds?.reduce((sum, p) => sum + (p.points || 0), 0) || 0
-      const exact = preds?.filter(p => p.exact_hit === true).length || 0
-      setStats({ points, exact })
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const { data: preds } = await supabase
+          .from('predictions')
+          .select('points, exact_hit')
+          .eq('user_id', user.id)
+
+        const points = preds?.reduce((sum, p) => sum + (p.points || 0), 0) || 0
+        const exact = preds?.filter(p => p.exact_hit === true).length || 0
+
+        setStats({ points, exact })
+      } catch (err) {
+        console.error('Chyba při načítání statistik:', err)
+      }
     }
     load()
   }, [supabase, pathname])
@@ -69,7 +75,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </nav>
 
-      {/* Statistiky */}
+      {/* Statistiky - hráč vidí své body */}
       <div className="max-w-3xl mx-auto px-4 pt-4 flex gap-3">
         <div className="flex-1 bg-white dark:bg-card-dark rounded-xl p-3 border border-gray-200 dark:border-border-dark flex items-center justify-center gap-2 shadow-sm transition-colors">
           <Image src={theme === 'dark' ? '/icons/star-dark.svg' : '/icons/star-light.svg'} alt="Body" width={20} height={20} unoptimized={true} />
