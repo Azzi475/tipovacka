@@ -78,11 +78,11 @@ export default function AdminPage() {
     const active = t?.find(x => x.is_active)
     const tid = selectedTournament || active?.id || (t?.[0]?.id)
     if (tid && !selectedTournament) setSelectedTournament(tid)
-    
+
     const current = t?.find(x => x.id === tid) || null
     setCurrentTournament(current)
     if (current?.leaderboard_message) setLeaderboardMsg(current.leaderboard_message)
-    
+
     if (tid) {
       const { data } = await supabase.from('matches').select('*').eq('tournament_id', tid).order('kickoff_at', { ascending: true })
       setMatches(data || [])
@@ -115,7 +115,7 @@ export default function AdminPage() {
         leaderboard_message: leaderboardMsg || null 
       })
       .eq('id', currentTournament.id)
-    
+
     if (error) {
       setMessage('Chyba: ' + error.message)
     } else {
@@ -210,7 +210,7 @@ export default function AdminPage() {
               Nový turnaj
             </button>
           </div>
-          
+
           {showNewTournament && (
             <form onSubmit={createTournament} className="mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600 space-y-3">
               <input required placeholder="Název turnaje" className="w-full p-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" value={newTournament.name} onChange={e => setNewTournament({...newTournament, name: e.target.value})} />
@@ -232,7 +232,7 @@ export default function AdminPage() {
               </button>
             ))}
           </div>
-          
+
           {currentTournament && (
             <div className="mt-3 flex gap-2 flex-wrap">
               {currentTournament.status !== 'active' && currentTournament.status !== 'finished' && (
@@ -283,14 +283,13 @@ export default function AdminPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* Ovládání žebříčku pro admina */}
             {currentTournament && (
               <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm">
                 <h3 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                   <Image src={theme === 'dark' ? '/icons/nav-leaderboard-dark.svg' : '/icons/nav-leaderboard-light.svg'} alt="" width={20} height={20} unoptimized={true} />
                   Nastavení žebříčku
                 </h3>
-                
+
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">
@@ -303,7 +302,7 @@ export default function AdminPage() {
                       className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px] resize-y text-sm"
                     />
                   </div>
-                  
+
                   <div className="flex items-center gap-3 flex-wrap">
                     <button
                       onClick={toggleLeaderboard}
@@ -323,7 +322,7 @@ export default function AdminPage() {
                       />
                       {currentTournament.leaderboard_closed ? 'Otevřít žebříček hráčům' : 'Uzavřít žebříček hráčům'}
                     </button>
-                    
+
                     <span className={`text-sm font-medium px-3 py-1.5 rounded-full ${
                       currentTournament.leaderboard_closed 
                         ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' 
@@ -336,7 +335,6 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Žebříček - admin vidí vždy všechno */}
             <LeaderboardTab leaderboard={leaderboard} />
           </div>
         )}
@@ -384,11 +382,35 @@ function MatchCard({ match, onRefresh, setMessage, isDeleting, onConfirmDelete, 
 
   const saveResult = async () => {
     setSaving(true)
-    const res = await fetch(`/api/matches/${match.id}/evaluate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ home_score: Number(home), away_score: Number(away) }) })
-    const data = await res.json()
+    try {
+      // OPRAVA URL: /api/matches/[id] místo /api/matches/[id]/evaluate
+      const res = await fetch(`/api/matches/${match.id}`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ home_score: Number(home), away_score: Number(away) }) 
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        console.error('Evaluate error:', data)
+        setMessage('Chyba: ' + (data.error || `HTTP ${res.status}`))
+        setSaving(false)
+        return
+      }
+
+      if (data.success) { 
+        setMessage(`Výsledek uložen (${data.evaluated} tipů vyhodnoceno)`)
+        setEditing(false)
+        onRefresh()
+      } else {
+        setMessage('Chyba: ' + (data.error || 'Neznámá chyba'))
+      }
+    } catch (err) {
+      console.error('Fetch error:', err)
+      setMessage('Chyba připojení k serveru')
+    }
     setSaving(false)
-    if (data.success) { setMessage('Výsledek uložen'); setEditing(false); onRefresh() }
-    else setMessage('Chyba: ' + (data.error || 'Neznámá'))
   }
 
   const isFinished = match.status === 'finished'
@@ -425,7 +447,7 @@ function MatchCard({ match, onRefresh, setMessage, isDeleting, onConfirmDelete, 
 
           {(!isFinished || editing) && <button onClick={saveResult} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-50">{saving ? '...' : 'Uložit'}</button>}
           {isFinished && !editing && <button onClick={() => setEditing(true)} className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg text-sm transition">Edit</button>}
-          
+
           {isDeleting ? (
             <div className="flex gap-2">
               <button onClick={onDelete} className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-bold transition">Smazat</button>
