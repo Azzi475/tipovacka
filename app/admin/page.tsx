@@ -373,6 +373,7 @@ function MatchCard({ match, onRefresh, setMessage, isDeleting, onConfirmDelete, 
   const [away, setAway] = useState(match.away_score_regular ?? '')
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(false)
+  const supabase = createClient()
 
   useEffect(() => {
     setHome(match.home_score_regular ?? '')
@@ -383,36 +384,99 @@ function MatchCard({ match, onRefresh, setMessage, isDeleting, onConfirmDelete, 
   const saveResult = async () => {
     setSaving(true)
     try {
-      // OPRAVA: Používáme flat route /api/matches/evaluate
-      const res = await fetch('/api/matches/evaluate', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ 
-          match_id: match.id,
-          home_score: Number(home), 
-          away_score: Number(away) 
-        }) 
-      })
+      const homeScore = Number(home)
+      const awayScore = Number(away)
 
-      const data = await res.json()
+      // 1. Uložení skóre do matches
+      const { error: matchError } = await supabase
+        .from('matches')
+        .update({ 
+          home_score_regular: homeScore, 
+          away_score_regular: awayScore, 
+          status: 'finished' 
+        })
+        .eq('id', match.id)
 
-      if (!res.ok) {
-        console.error('Evaluate error:', data)
-        setMessage('Chyba: ' + (data.error || `HTTP ${res.status}`))
+      if (matchError) {
+        console.error('Match update error:', matchError)
+        setMessage('Chyba při ukládání skóre: ' + matchError.message)
         setSaving(false)
         return
       }
 
-      if (data.success) { 
-        setMessage(`Výsledek uložen (${data.evaluated} tipů vyhodnoceno)`)
+      // 2. Načtení všech tipů pro tento zápas
+      const { data: predictions, error: predError } = await supabase
+        .from('predictions')
+        .select('*')
+        .eq('match_id', match.id)
+
+      if (predError) {
+        console.error('Predictions load error:', predError)
+        setMessage('Chyba při načítání tipů: ' + predError.message)
+        setSaving(false)
+        return
+      }
+
+      if (!predictions || predictions.length === 0) {
+        setMessage('Skóre uloženo. Žádné tipy k vyhodnocení.')
         setEditing(false)
         onRefresh()
-      } else {
-        setMessage('Chyba: ' + (data.error || 'Neznámá chyba'))
+        setSaving(false)
+        return
       }
+
+      // 3. Přepočet bodů
+      const exactHits = predictions.filter(p => 
+        p.predicted_home_score === homeScore && p.predicted_away_score === awayScore
+      )
+      const exactCount = exactHits.length
+      const actualWinner = homeScore > awayScore ? 'home' : awayScore > homeScore ? 'away' : 'draw'
+
+      let updatedCount = 0
+
+      for (const pred of predictions) {
+        let points = 0
+        let exactHit = false
+        let winnerOrDrawHit = false
+        let uniqueExact = false
+
+        if (pred.predicted_home_score === homeScore && pred.predicted_away_score === awayScore) {
+          exactHit = true
+          uniqueExact = exactCount === 1
+          points = uniqueExact ? 3 : 2
+        } else {
+          const predictedWinner = pred.predicted_home_score > pred.predicted_away_score ? 'home' : 
+                                 pred.predicted_away_score > pred.predicted_home_score ? 'away' : 'draw'
+          if (predictedWinner === actualWinner) {
+            winnerOrDrawHit = true
+            points = 1
+          }
+        }
+
+        const { error: updateError } = await supabase
+          .from('predictions')
+          .update({
+            points,
+            exact_hit: exactHit,
+            winner_or_draw_hit: winnerOrDrawHit,
+            unique_exact: uniqueExact
+          })
+          .eq('id', pred.id)
+
+        if (updateError) {
+          console.error('Prediction update error:', updateError)
+        } else {
+          updatedCount++
+        }
+      }
+
+      setMessage(`Vyhodnoceno! ${updatedCount} tipů aktualizováno.`)
+      setEditing(false)
+      onRefresh()
+
     } catch (err) {
-      console.error('Fetch error:', err)
-      setMessage('Chyba připojení k serveru')
+      console.error('Unexpected error:', err)
+      setMessage('Neočekávaná chyba: ' + (err as Error).message)
     }
     setSaving(false)
   }
