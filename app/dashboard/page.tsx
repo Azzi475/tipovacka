@@ -103,14 +103,12 @@ export default function TipsPage() {
   const handlePredict = async (matchId: string, home: number, away: number) => {
     const supabase = createClient()
     
-    // Získáme aktuálního uživatele přímo zde - spolehlivější než stav
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       alert('Nejste přihlášeni')
       return
     }
 
-    // Ošetření NaN
     const homeScore = isNaN(home) ? 0 : home
     const awayScore = isNaN(away) ? 0 : away
 
@@ -122,7 +120,7 @@ export default function TipsPage() {
         predicted_home_score: homeScore,
         predicted_away_score: awayScore,
       }, {
-        onConflict: 'user_id,match_id' // Důležité pro správný upsert
+        onConflict: 'user_id,match_id'
       })
 
     if (error) {
@@ -131,7 +129,6 @@ export default function TipsPage() {
       return
     }
 
-    // Po úspěšném uložení znovu načteme data
     await loadData()
   }
 
@@ -169,16 +166,25 @@ function MatchCard({
   prediction?: Prediction
   onPredict: (id: string, h: number, a: number) => void
 }) {
-  // Inicializace pouze při mountu - uživatel může hodnoty měnit
   const [homeScore, setHomeScore] = useState(() => prediction?.predicted_home_score?.toString() || '')
   const [awayScore, setAwayScore] = useState(() => prediction?.predicted_away_score?.toString() || '')
   
-  const isLocked = match.status !== 'scheduled'
+  // === OPRAVA ČASOVÉ ZÓNY ===
+  // kickoff_at z databáze je typicky v UTC (ISO string)
+  // new Date() parsuje lokálně, což může způsobit posun
+  // Explicitně parsujeme UTC čas a porovnáváme s aktuálním UTC časem
+  const now = new Date()
+  const kickoff = new Date(match.kickoff_at + 'Z') // Přidáme Z pro explicitní UTC, pokud chybí
+  const isTimeLocked = now.getTime() >= kickoff.getTime()
+  
   const isFinished = match.status === 'finished'
+  const isLive = match.status === 'live'
+  
+  // OPRAVA: Přesná priorita statusů
+  const isLocked = isFinished || isLive || isTimeLocked || match.status === 'postponed'
+  
   const hasPrediction = !!prediction
 
-  // Synchronizace pouze když se prediction změní zvenčí (např. po uložení z jiného zařízení)
-  // a lokální hodnoty jsou prázdné (nebyly editovány uživatelem)
   useEffect(() => {
     if (!homeScore && prediction?.predicted_home_score !== undefined) {
       setHomeScore(prediction.predicted_home_score.toString())
@@ -190,14 +196,20 @@ function MatchCard({
 
   const getStatusIcon = () => {
     if (isFinished) return '/icons/status-finished.svg'
-    if (isLocked) return '/icons/status-locked.svg'
+    if (isLive || isTimeLocked) return '/icons/status-locked.svg'
     return '/icons/status-open.svg'
   }
 
   const getStatusText = () => {
     if (isFinished) return 'VYHODNOCENO'
-    if (isLocked) return 'ČEKÁ SE'
+    if (isLive || isTimeLocked) return 'UZAMČENO'
     return 'OTEVŘENO'
+  }
+
+  const getStatusColor = () => {
+    if (isFinished) return 'text-blue-600 dark:text-blue-400'
+    if (isLive || isTimeLocked) return 'text-amber-600 dark:text-amber-400'
+    return 'text-primary-blue dark:text-secondary-dark'
   }
 
   const handleSubmit = () => {
@@ -208,20 +220,14 @@ function MatchCard({
 
   return (
     <div className="bg-white dark:bg-card-dark rounded-2xl border border-gray-200 dark:border-border-dark p-5 shadow-sm relative transition-colors">
-      {/* Hlavička: Status + Tip badge + Datum */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Image src={getStatusIcon()} alt={getStatusText()} width={16} height={16} unoptimized={true} />
-          <span className={`text-xs font-semibold uppercase tracking-wide ${
-            isFinished ? 'text-blue-600 dark:text-blue-400' : 
-            isLocked ? 'text-amber-600 dark:text-amber-400' : 
-            'text-primary-blue dark:text-secondary-dark'
-          }`}>
+          <span className={`text-xs font-semibold uppercase tracking-wide ${getStatusColor()}`}>
             {getStatusText()}
           </span>
         </div>
 
-        {/* VÝRAZNÝ TIP BADGE - napravo nahoře */}
         {hasPrediction && (
           <div className="flex items-center gap-1.5 bg-light-blue dark:bg-border-dark px-3 py-1.5 rounded-lg border border-primary-blue/20 dark:border-secondary-dark/20">
             <Image src="/icons/target-light.svg" alt="" width={14} height={14} className="dark:hidden" unoptimized={true} />
@@ -248,7 +254,6 @@ function MatchCard({
         </span>
       </div>
 
-      {/* Týmy s vlajkami */}
       <div className="flex items-center justify-center gap-4 mb-5">
         <div className="flex items-center gap-3 flex-1 justify-end">
           <span className="text-sm font-semibold text-text-primary dark:text-white text-right">{match.home_team_name}</span>
@@ -263,7 +268,6 @@ function MatchCard({
         </div>
       </div>
 
-      {/* Skóre a tlačítko */}
       <div className="flex items-center justify-center gap-3">
         <input
           type="number"
