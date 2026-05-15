@@ -24,7 +24,7 @@ type Prediction = {
 
 function TeamFlag({ teamName, size = 40 }: { teamName: string; size?: number }) {
   const [error, setError] = useState(false)
-  
+
   if (error) {
     const code = getFlagCode(teamName)
     return (
@@ -102,7 +102,7 @@ export default function TipsPage() {
 
   const handlePredict = async (matchId: string, home: number, away: number) => {
     const supabase = createClient()
-    
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       alert('Nejste přihlášeni')
@@ -168,28 +168,28 @@ function MatchCard({
 }) {
   const [homeScore, setHomeScore] = useState(() => prediction?.predicted_home_score?.toString() || '')
   const [awayScore, setAwayScore] = useState(() => prediction?.predicted_away_score?.toString() || '')
-  
-  // === OPRAVA ČASOVÉ ZÓNY ===
-  // kickoff_at z databáze je typicky v UTC (ISO string)
-  // new Date() parsuje lokálně, což může způsobit posun
-  // Explicitně parsujeme UTC čas a porovnáváme s aktuálním UTC časem
+
+  // OPRAVA ČASOVÉ ZÓNY:
+  // Supabase vrací kickoff_at jako PostgreSQL timestamptz, např. "2026-05-15 14:20:00+00"
+  // new Date() to správně parsuje jako UTC čas
+  // NEPŘIDÁVÁME 'Z' - Supabase už obsahuje timezone info (+00)
   const now = new Date()
-  const kickoff = new Date(match.kickoff_at + 'Z') // Přidáme Z pro explicitní UTC, pokud chybí
+  const kickoff = new Date(match.kickoff_at)
   const isTimeLocked = now.getTime() >= kickoff.getTime()
-  
+
   const isFinished = match.status === 'finished'
   const isLive = match.status === 'live'
-  
-  // OPRAVA: Přesná priorita statusů
+
+  // Priorita statusů: finished > live > timeLocked > scheduled
   const isLocked = isFinished || isLive || isTimeLocked || match.status === 'postponed'
-  
+
   const hasPrediction = !!prediction
 
   useEffect(() => {
-    if (!homeScore && prediction?.predicted_home_score !== undefined) {
+    if (prediction?.predicted_home_score !== undefined) {
       setHomeScore(prediction.predicted_home_score.toString())
     }
-    if (!awayScore && prediction?.predicted_away_score !== undefined) {
+    if (prediction?.predicted_away_score !== undefined) {
       setAwayScore(prediction.predicted_away_score.toString())
     }
   }, [prediction?.predicted_home_score, prediction?.predicted_away_score])
@@ -202,7 +202,7 @@ function MatchCard({
 
   const getStatusText = () => {
     if (isFinished) return 'VYHODNOCENO'
-    if (isLive || isTimeLocked) return 'UZAMČENO'
+    if (isLive || isTimeLocked) return 'ČEKÁ SE'
     return 'OTEVŘENO'
   }
 
@@ -235,7 +235,7 @@ function MatchCard({
             <span className="text-sm font-bold text-primary-blue dark:text-secondary-dark">
               {prediction.predicted_home_score}:{prediction.predicted_away_score}
             </span>
-            {prediction.points !== null && (
+            {prediction.points !== null && prediction.points !== undefined && (
               <span className="text-[10px] bg-primary-blue text-white px-1.5 py-0.5 rounded-md font-bold">
                 +{prediction.points}
               </span>
@@ -244,7 +244,7 @@ function MatchCard({
         )}
 
         <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-          {new Date(match.kickoff_at).toLocaleString('cs-CZ', {
+          {kickoff.toLocaleString('cs-CZ', {
             day: 'numeric',
             month: 'numeric',
             year: 'numeric',
@@ -260,7 +260,17 @@ function MatchCard({
           <TeamFlag teamName={match.home_team_name} size={40} />
         </div>
 
-        <span className="text-sm font-bold text-gray-400 dark:text-gray-500 px-2">VS</span>
+        {/* ZOBRAZENÍ SKÓRE PO ZÁPASE NEBO VS */}
+        {isFinished && match.home_score_regular !== null && match.away_score_regular !== null ? (
+          <div className="flex flex-col items-center px-3">
+            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+              {match.home_score_regular} : {match.away_score_regular}
+            </span>
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Výsledek</span>
+          </div>
+        ) : (
+          <span className="text-sm font-bold text-gray-400 dark:text-gray-500 px-2">VS</span>
+        )}
 
         <div className="flex items-center gap-3 flex-1 justify-start">
           <TeamFlag teamName={match.away_team_name} size={40} />
@@ -286,7 +296,7 @@ function MatchCard({
           disabled={isLocked}
           className="w-14 h-12 text-center text-lg font-bold rounded-xl border-2 border-gray-200 dark:border-border-dark bg-white dark:bg-card-dark text-text-primary dark:text-white focus:border-primary-blue focus:outline-none disabled:opacity-50"
         />
-        
+
         {!isLocked ? (
           <button
             onClick={handleSubmit}

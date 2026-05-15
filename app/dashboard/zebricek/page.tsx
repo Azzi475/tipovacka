@@ -14,24 +14,55 @@ export default function ZebricekPage() {
 
   useEffect(() => {
     async function load() {
-      const { data: t } = await supabase.from('tournaments').select('*').eq('is_active', true).single()
-      setTournament(t)
+      try {
+        // Načtení aktivního turnaje
+        const { data: t } = await supabase
+          .from('tournaments')
+          .select('*')
+          .eq('is_active', true)
+          .single()
 
-      if (t && !t.leaderboard_closed) {
-        const { data: preds } = await supabase.from('predictions').select('user_id, points, exact_hit').not('points', 'is', null)
-        const { data: profs } = await supabase.from('profiles').select('id, nickname, first_name, last_name')
-        
-        if (preds && profs) {
-          const map: Record<string, any> = {}
-          profs.forEach((p: any) => map[p.id] = p)
-          const grouped: Record<string, any> = {}
-          preds.forEach((row: any) => {
-            if (!grouped[row.user_id]) grouped[row.user_id] = { user_id: row.user_id, profile: map[row.user_id], exact: 0, points: 0 }
-            grouped[row.user_id].points += (row.points || 0)
-            if (row.exact_hit) grouped[row.user_id].exact += 1
-          })
-          setLeaderboard(Object.values(grouped).sort((a: any, b: any) => b.points - a.points))
+        setTournament(t)
+
+        if (t && !t.leaderboard_closed) {
+          // Načtení všech predictions s body
+          const { data: preds } = await supabase
+            .from('predictions')
+            .select('user_id, points, exact_hit')
+            .not('points', 'is', null)
+
+          const { data: profs } = await supabase
+            .from('profiles')
+            .select('id, nickname, first_name, last_name')
+
+          if (preds && profs && preds.length > 0) {
+            const map: Record<string, any> = {}
+            profs.forEach((p: any) => map[p.id] = p)
+
+            const grouped: Record<string, any> = {}
+            preds.forEach((row: any) => {
+              if (!grouped[row.user_id]) {
+                grouped[row.user_id] = { 
+                  user_id: row.user_id, 
+                  profile: map[row.user_id], 
+                  exact: 0, 
+                  points: 0 
+                }
+              }
+              grouped[row.user_id].points += (row.points || 0)
+              if (row.exact_hit) grouped[row.user_id].exact += 1
+            })
+
+            setLeaderboard(
+              Object.values(grouped).sort((a: any, b: any) => b.points - a.points)
+            )
+          } else {
+            setLeaderboard([])
+          }
         }
+      } catch (err) {
+        console.error('Chyba při načítání žebříčku:', err)
+        setLeaderboard([])
       }
       setLoading(false)
     }
@@ -78,7 +109,9 @@ export default function ZebricekPage() {
         </div>
         <div className="divide-y divide-gray-100 dark:divide-border-dark">
           {leaderboard.length === 0 && (
-            <div className="p-8 text-center text-gray-400 dark:text-gray-500 text-sm">Zatím žádná data</div>
+            <div className="p-8 text-center text-gray-400 dark:text-gray-500 text-sm">
+              Zatím žádná data. Body se zobrazí po vyhodnocení prvních zápasů.
+            </div>
           )}
           {leaderboard.map((row, idx) => {
             const name = row.profile?.nickname || `${row.profile?.first_name || ''} ${row.profile?.last_name || ''}`.trim() || 'Neznámý'
