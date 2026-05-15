@@ -383,11 +383,15 @@ function MatchCard({ match, onRefresh, setMessage, isDeleting, onConfirmDelete, 
   const saveResult = async () => {
     setSaving(true)
     try {
-      // OPRAVA URL: /api/matches/[id] místo /api/matches/[id]/evaluate
-      const res = await fetch(`/api/matches/${match.id}`, { 
+      // OPRAVA: Používáme flat route /api/matches/evaluate
+      const res = await fetch('/api/matches/evaluate', { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ home_score: Number(home), away_score: Number(away) }) 
+        body: JSON.stringify({ 
+          match_id: match.id,
+          home_score: Number(home), 
+          away_score: Number(away) 
+        }) 
       })
 
       const data = await res.json()
