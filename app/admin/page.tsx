@@ -60,6 +60,7 @@ export default function AdminPage() {
   const [newMatch, setNewMatch] = useState({ home: '', away: '', date: '', time: '16:20' })
   const [newTournament, setNewTournament] = useState({ name: '', sport: 'ice_hockey', season_year: 2026 })
   const [leaderboardMsg, setLeaderboardMsg] = useState('')
+  const [showFinished, setShowFinished] = useState(false)
 
   useEffect(() => {
     async function check() {
@@ -91,16 +92,17 @@ export default function AdminPage() {
   }
 
   async function loadLeaderboard() {
-    const { data: preds } = await supabase.from('predictions').select('user_id, points, exact_hit').not('points', 'is', null)
+    const { data: preds } = await supabase.from('predictions').select('user_id, points, exact_hit, unique_exact').not('points', 'is', null)
     const { data: profs } = await supabase.from('profiles').select('id, nickname, first_name, last_name')
     if (!preds || !profs) { setLeaderboard([]); return }
     const map: Record<string, any> = {}
     profs.forEach((p: any) => map[p.id] = p)
     const grouped: Record<string, any> = {}
     preds.forEach((row: any) => {
-      if (!grouped[row.user_id]) grouped[row.user_id] = { user_id: row.user_id, profile: map[row.user_id], exact: 0, points: 0 }
+      if (!grouped[row.user_id]) grouped[row.user_id] = { user_id: row.user_id, profile: map[row.user_id], exact: 0, unique: 0, points: 0 }
       grouped[row.user_id].points += (row.points || 0)
       if (row.exact_hit) grouped[row.user_id].exact += 1
+      if (row.unique_exact) grouped[row.user_id].unique += 1
     })
     setLeaderboard(Object.values(grouped).sort((a: any, b: any) => b.points - a.points))
   }
@@ -163,6 +165,11 @@ export default function AdminPage() {
     if (data.success) { setMessage('Zápas smazán'); setDeleteConfirm(null); loadData() }
     else setMessage('Chyba mazání')
   }
+
+  // Filtrování zápasů pro admina
+  const visibleMatches = showFinished 
+    ? matches 
+    : matches.filter(m => m.status !== 'finished')
 
   if (isAdmin === null) return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center"><div className="animate-pulse text-gray-500 dark:text-gray-400">Načítání...</div></div>
   if (isAdmin === false) return (
@@ -251,10 +258,28 @@ export default function AdminPage() {
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-bold text-gray-900 dark:text-white">Správa zápasů</h2>
-                <button onClick={() => setShowAddForm(!showAddForm)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-1">
-                  <Image src={showAddForm ? '/icons/close-x-light.svg' : '/icons/add-plus-light.svg'} alt="" width={14} height={14} className="invert" unoptimized={true} />
-                  {showAddForm ? 'Zavřít' : 'Přidat zápas'}
-                </button>
+                <div className="flex items-center gap-3">
+                  {/* TOGGLE FILTR */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Zobrazit odehrané</span>
+                    <button
+                      onClick={() => setShowFinished(!showFinished)}
+                      className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+                        showFinished ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
+                          showFinished ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  <button onClick={() => setShowAddForm(!showAddForm)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-1">
+                    <Image src={showAddForm ? '/icons/close-x-light.svg' : '/icons/add-plus-light.svg'} alt="" width={14} height={14} className="invert" unoptimized={true} />
+                    {showAddForm ? 'Zavřít' : 'Přidat zápas'}
+                  </button>
+                </div>
               </div>
 
               {showAddForm && (
@@ -275,10 +300,15 @@ export default function AdminPage() {
             </div>
 
             <div className="space-y-3">
-              {matches.length === 0 && <div className="text-center py-12 text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600">Žádné zápasy</div>}
-              {matches.map(m => (
+              {visibleMatches.length === 0 && <div className="text-center py-12 text-gray-400 dark:text-gray-500 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600">Žádné zápasy</div>}
+              {visibleMatches.map(m => (
                 <MatchCard key={m.id} match={m} onRefresh={loadData} setMessage={setMessage} isDeleting={deleteConfirm === m.id} onConfirmDelete={() => setDeleteConfirm(m.id)} onDelete={() => deleteMatch(m.id)} onCancelDelete={() => setDeleteConfirm(null)} />
               ))}
+              {!showFinished && matches.filter(m => m.status === 'finished').length > 0 && (
+                <div className="text-center py-4 text-gray-400 dark:text-gray-500 text-sm">
+                  {matches.filter(m => m.status === 'finished').length} odehraných zápasů skryto
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -386,7 +416,6 @@ function MatchCard({ match, onRefresh, setMessage, isDeleting, onConfirmDelete, 
       const homeScore = Number(home)
       const awayScore = Number(away)
 
-      // 1. Uložení skóre do matches přes evaluate endpoint
       const res = await fetch(`/api/matches/${match.id}/evaluate`, { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
@@ -490,9 +519,20 @@ function LeaderboardTab({ leaderboard }: { leaderboard: any[] }) {
                 <div className="font-bold text-gray-900 dark:text-white truncate">{name}</div>
                 {row.profile?.nickname && <div className="text-xs text-gray-500 dark:text-gray-400">{row.profile?.first_name} {row.profile?.last_name}</div>}
               </div>
-              <div className="text-right shrink-0">
-                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{row.points} <span className="text-xs font-normal text-gray-500">bodů</span></div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">{row.exact} přesných</div>
+              {/* Statistiky - Body, Přesné, Unikátní */}
+              <div className="text-right shrink-0 flex gap-4">
+                <div>
+                  <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{row.points}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">bodů</div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{row.exact}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">přesných</div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-yellow-600 dark:text-yellow-400">{row.unique}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">unikátních</div>
+                </div>
               </div>
             </div>
           )
