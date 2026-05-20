@@ -55,6 +55,7 @@ export default function TipsPage() {
   const [matches, setMatches] = useState<Match[]>([])
   const [predictions, setPredictions] = useState<Record<string, Prediction>>({})
   const [loading, setLoading] = useState(true)
+  const [showFinished, setShowFinished] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -132,6 +133,11 @@ export default function TipsPage() {
     await loadData()
   }
 
+  // Filtrování zápasů
+  const visibleMatches = showFinished 
+    ? matches 
+    : matches.filter(m => m.status !== 'finished')
+
   if (loading) return <div className="text-center py-8 text-gray-500">Načítání...</div>
 
   if (matches.length === 0) {
@@ -144,8 +150,28 @@ export default function TipsPage() {
 
   return (
     <div className="space-y-4 py-4">
-      <h2 className="text-[32px] leading-[40px] font-semibold text-text-primary dark:text-white mb-2">Moje tipy</h2>
-      {matches.map((match) => (
+      {/* Hlavička s toggle */}
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-[32px] leading-[40px] font-semibold text-text-primary dark:text-white">Moje tipy</h2>
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-600 dark:text-gray-400">Zobrazit odehrané</span>
+          <button
+            onClick={() => setShowFinished(!showFinished)}
+            className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+              showFinished ? 'bg-primary-blue' : 'bg-gray-300 dark:bg-gray-600'
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
+                showFinished ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      {visibleMatches.map((match) => (
         <MatchCard
           key={match.id}
           match={match}
@@ -153,6 +179,12 @@ export default function TipsPage() {
           onPredict={handlePredict}
         />
       ))}
+
+      {!showFinished && matches.filter(m => m.status === 'finished').length > 0 && (
+        <div className="text-center py-4 text-gray-400 dark:text-gray-500 text-sm">
+          {matches.filter(m => m.status === 'finished').length} odehraných zápasů skryto
+        </div>
+      )}
     </div>
   )
 }
@@ -169,10 +201,6 @@ function MatchCard({
   const [homeScore, setHomeScore] = useState(() => prediction?.predicted_home_score?.toString() || '')
   const [awayScore, setAwayScore] = useState(() => prediction?.predicted_away_score?.toString() || '')
 
-  // OPRAVA ČASOVÉ ZÓNY:
-  // Supabase vrací kickoff_at jako PostgreSQL timestamptz, např. "2026-05-15 14:20:00+00"
-  // new Date() to správně parsuje jako UTC čas
-  // NEPŘIDÁVÁME 'Z' - Supabase už obsahuje timezone info (+00)
   const now = new Date()
   const kickoff = new Date(match.kickoff_at)
   const isTimeLocked = now.getTime() >= kickoff.getTime()
@@ -180,7 +208,6 @@ function MatchCard({
   const isFinished = match.status === 'finished'
   const isLive = match.status === 'live'
 
-  // Priorita statusů: finished > live > timeLocked > scheduled
   const isLocked = isFinished || isLive || isTimeLocked || match.status === 'postponed'
 
   const hasPrediction = !!prediction
@@ -218,6 +245,82 @@ function MatchCard({
     onPredict(match.id, home, away)
   }
 
+  // ========== LAYOUT PRO ODEHRANÉ ZÁPASY ==========
+  if (isFinished) {
+    return (
+      <div className="bg-white dark:bg-card-dark rounded-2xl border border-gray-200 dark:border-border-dark p-5 shadow-sm relative transition-colors opacity-80">
+        {/* Horní řádek - status a čas */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Image src={getStatusIcon()} alt={getStatusText()} width={16} height={16} unoptimized={true} />
+            <span className={`text-xs font-semibold uppercase tracking-wide ${getStatusColor()}`}>
+              {getStatusText()}
+            </span>
+          </div>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {kickoff.toLocaleString('cs-CZ', {
+              day: 'numeric',
+              month: 'numeric',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </span>
+        </div>
+
+        {/* Týmy - vlajky nahoře, názvy vycentrované pod nimi */}
+        <div className="flex items-center justify-center gap-6 mb-4">
+          {/* Domácí */}
+          <div className="flex flex-col items-center gap-2 flex-1">
+            <TeamFlag teamName={match.home_team_name} size={48} />
+            <span className="text-sm font-semibold text-text-primary dark:text-white text-center">
+              {match.home_team_name}
+            </span>
+          </div>
+
+          {/* Skóre */}
+          <div className="flex flex-col items-center px-4">
+            <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+              {match.home_score_regular} : {match.away_score_regular}
+            </span>
+            <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider mt-1">Výsledek</span>
+          </div>
+
+          {/* Hosté */}
+          <div className="flex flex-col items-center gap-2 flex-1">
+            <TeamFlag teamName={match.away_team_name} size={48} />
+            <span className="text-sm font-semibold text-text-primary dark:text-white text-center">
+              {match.away_team_name}
+            </span>
+          </div>
+        </div>
+
+        {/* Tip hráče */}
+        {hasPrediction && (
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <span className="text-xs text-gray-500 dark:text-gray-400">Tvůj tip:</span>
+            <span className="text-sm font-bold text-primary-blue dark:text-secondary-dark">
+              {prediction.predicted_home_score}:{prediction.predicted_away_score}
+            </span>
+            {prediction.points !== null && prediction.points !== undefined && (
+              <span className="text-[10px] bg-primary-blue text-white px-1.5 py-0.5 rounded-md font-bold">
+                +{prediction.points}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Poslední řádek - vyhodnoceno */}
+        <div className="text-center">
+          <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">
+            Vyhodnoceno
+          </span>
+        </div>
+      </div>
+    )
+  }
+
+  // ========== LAYOUT PRO BĚŽNÉ ZÁPASY (původní) ==========
   return (
     <div className="bg-white dark:bg-card-dark rounded-2xl border border-gray-200 dark:border-border-dark p-5 shadow-sm relative transition-colors">
       <div className="flex items-center justify-between mb-4">
@@ -260,17 +363,7 @@ function MatchCard({
           <TeamFlag teamName={match.home_team_name} size={40} />
         </div>
 
-        {/* ZOBRAZENÍ SKÓRE PO ZÁPASE NEBO VS */}
-        {isFinished && match.home_score_regular !== null && match.away_score_regular !== null ? (
-          <div className="flex flex-col items-center px-3">
-            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
-              {match.home_score_regular} : {match.away_score_regular}
-            </span>
-            <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wider">Výsledek</span>
-          </div>
-        ) : (
-          <span className="text-sm font-bold text-gray-400 dark:text-gray-500 px-2">VS</span>
-        )}
+        <span className="text-sm font-bold text-gray-400 dark:text-gray-500 px-2">VS</span>
 
         <div className="flex items-center gap-3 flex-1 justify-start">
           <TeamFlag teamName={match.away_team_name} size={40} />
@@ -306,7 +399,7 @@ function MatchCard({
           </button>
         ) : (
           <div className="ml-2 px-4 py-2.5 text-sm font-semibold text-gray-500 dark:text-gray-400">
-            {isFinished ? 'Vyhodnoceno' : 'Uzavřeno'}
+            Uzavřeno
           </div>
         )}
       </div>
