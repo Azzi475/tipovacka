@@ -43,18 +43,6 @@ function TeamFlag({ teamName, size = 24 }: { teamName: string; size?: number }) 
   )
 }
 
-// OPRAVA: Robustní konverze bodů z int4/BigInt/whatever
-function safePoints(val: any): number {
-  if (val === null || val === undefined) return 0
-  if (typeof val === 'bigint') return Number(val)
-  if (typeof val === 'number') return val
-  if (typeof val === 'string') {
-    const n = Number(val)
-    return isNaN(n) ? 0 : n
-  }
-  return 0
-}
-
 export default function AdminPage() {
   const supabase = createClient()
   const { theme, toggleTheme } = useTheme()
@@ -124,16 +112,19 @@ export default function AdminPage() {
       const matchIds = matchesData.map((m: any) => m.id)
 
       // 2. Získáme VŠECHNY predikce pro zápasy v tomto turnaji
+      // OPRAVA: Používáme stejný pattern jako statistiky - .not('points', 'is', null)
       const { data: preds, error: predsError } = await supabase
         .from('predictions')
-        .select('user_id, match_id, points, exact_hit, unique_exact')
+        .select('user_id, points, exact_hit, unique_exact')
         .in('match_id', matchIds)
+        .not('points', 'is', null)
 
       if (predsError || !preds) {
         setLeaderboard([])
         return
       }
 
+      // 3. Načteme profily
       const { data: profs } = await supabase.from('profiles').select('id, nickname, first_name, last_name')
 
       if (!profs) { setLeaderboard([]); return }
@@ -141,6 +132,7 @@ export default function AdminPage() {
       const map: Record<string, any> = {}
       profs.forEach((p: any) => map[p.id] = p)
 
+      // 4. Seskupíme podle uživatelů - stejně jako statistiky: (p.points || 0)
       const grouped: Record<string, any> = {}
 
       preds.forEach((row: any) => {
@@ -154,9 +146,8 @@ export default function AdminPage() {
           }
         }
 
-        // OPRAVA: Použijeme safePoints pro správnou konverzi int4/BigInt
-        const pts = safePoints(row.points)
-        grouped[row.user_id].points += pts
+        // OPRAVA: Stejný pattern jako statistiky - (p.points || 0)
+        grouped[row.user_id].points += (row.points || 0)
 
         if (row.exact_hit === true) grouped[row.user_id].exact += 1
         if (row.unique_exact === true) grouped[row.user_id].unique += 1
