@@ -28,14 +28,6 @@ type Tournament = {
   leaderboard_message: string | null
 }
 
-type Prediction = {
-  user_id: string
-  match_id: string
-  points: number | null
-  exact_hit: boolean
-  unique_exact: boolean
-}
-
 function TeamFlag({ teamName, size = 24 }: { teamName: string; size?: number }) {
   const [error, setError] = useState(false)
   if (error) {
@@ -49,6 +41,18 @@ function TeamFlag({ teamName, size = 24 }: { teamName: string; size?: number }) 
   return (
     <Image src={getFlagPath(teamName)} alt={teamName} width={size} height={size} className="inline-block rounded-full object-cover" unoptimized={true} onError={() => setError(true)} />
   )
+}
+
+// OPRAVA: Robustní konverze bodů z int4/BigInt/whatever
+function safePoints(val: any): number {
+  if (val === null || val === undefined) return 0
+  if (typeof val === 'bigint') return Number(val)
+  if (typeof val === 'number') return val
+  if (typeof val === 'string') {
+    const n = Number(val)
+    return isNaN(n) ? 0 : n
+  }
+  return 0
 }
 
 export default function AdminPage() {
@@ -102,35 +106,22 @@ export default function AdminPage() {
 
   async function loadLeaderboard(tournamentId?: string) {
     const tid = tournamentId || selectedTournament
-    if (!tid) { 
-      alert('DEBUG: tid je prázdné!') 
-      setLeaderboard([]) 
-      return 
-    }
+    if (!tid) { setLeaderboard([]); return }
 
     setLoadingLeaderboard(true)
     try {
       // 1. Získáme všechny zápasy v turnaji
       const { data: matchesData, error: matchesError } = await supabase
         .from('matches')
-        .select('id, home_team_name, away_team_name, status')
+        .select('id')
         .eq('tournament_id', tid)
 
-      if (matchesError) {
-        alert('DEBUG: Chyba zápasů: ' + matchesError.message)
-        setMessage('Chyba při načítání zápasů: ' + matchesError.message)
-        setLeaderboard([])
-        return
-      }
-
-      if (!matchesData || matchesData.length === 0) {
-        alert('DEBUG: Žádné zápasy v turnaji ' + tid)
+      if (matchesError || !matchesData || matchesData.length === 0) {
         setLeaderboard([])
         return
       }
 
       const matchIds = matchesData.map((m: any) => m.id)
-      alert('DEBUG: Zápasů v turnaji: ' + matchIds.length)
 
       // 2. Získáme VŠECHNY predikce pro zápasy v tomto turnaji
       const { data: preds, error: predsError } = await supabase
@@ -138,41 +129,21 @@ export default function AdminPage() {
         .select('user_id, match_id, points, exact_hit, unique_exact')
         .in('match_id', matchIds)
 
-      if (predsError) {
-        alert('DEBUG: Chyba predikcí: ' + predsError.message)
-        setMessage('Chyba při načítání predikcí: ' + predsError.message)
+      if (predsError || !preds) {
         setLeaderboard([])
         return
       }
 
-      alert('DEBUG: Predikcí celkem: ' + (preds?.length || 0))
+      const { data: profs } = await supabase.from('profiles').select('id, nickname, first_name, last_name')
 
-      const { data: profs, error: profsError } = await supabase.from('profiles').select('id, nickname, first_name, last_name')
+      if (!profs) { setLeaderboard([]); return }
 
-      if (profsError) {
-        alert('DEBUG: Chyba profilů: ' + profsError.message)
-      }
-
-      if (!preds || !profs) { 
-        alert('DEBUG: Chybí data - preds: ' + (preds?.length || 'null') + ', profs: ' + (profs?.length || 'null'))
-        setLeaderboard([]) 
-        return 
-      }
-
-      // 3. Zjistíme aktuální user ID
-      const { data: { user } } = await supabase.auth.getUser()
-      const myId = user?.id
-      alert('DEBUG: Moje user ID: ' + myId)
-
-      // 4. Seskupíme podle uživatelů
       const map: Record<string, any> = {}
       profs.forEach((p: any) => map[p.id] = p)
 
       const grouped: Record<string, any> = {}
-      let myPointsManual = 0
-      let myPredsCount = 0
 
-      preds.forEach((row: Prediction) => {
+      preds.forEach((row: any) => {
         if (!grouped[row.user_id]) {
           grouped[row.user_id] = { 
             user_id: row.user_id, 
@@ -183,25 +154,16 @@ export default function AdminPage() {
           }
         }
 
-        const pts = row.points === null || row.points === undefined ? 0 : Number(row.points)
+        // OPRAVA: Použijeme safePoints pro správnou konverzi int4/BigInt
+        const pts = safePoints(row.points)
         grouped[row.user_id].points += pts
-
-        // Debug pro mě
-        if (row.user_id === myId) {
-          myPointsManual += pts
-          myPredsCount++
-        }
 
         if (row.exact_hit === true) grouped[row.user_id].exact += 1
         if (row.unique_exact === true) grouped[row.user_id].unique += 1
       })
 
-      alert('DEBUG: Moje predikcí: ' + myPredsCount + '\nRuční součet: ' + myPointsManual + '\nZ grouped: ' + (grouped[myId || '']?.points || 'NENALEZENO'))
-
-      const sorted = Object.values(grouped).sort((a: any, b: any) => b.points - a.points)
-      setLeaderboard(sorted)
+      setLeaderboard(Object.values(grouped).sort((a: any, b: any) => b.points - a.points))
     } catch (err: any) {
-      alert('DEBUG: Chyba: ' + (err?.message || 'Neznámá chyba'))
       setMessage('Chyba při načítání žebříčku: ' + (err?.message || 'Neznámá chyba'))
     } finally {
       setLoadingLeaderboard(false)
