@@ -98,62 +98,33 @@ export default function AdminPage() {
 
     setLoadingLeaderboard(true)
     try {
-      // 1. Získáme všechny zápasy v turnaji
-      const { data: matchesData } = await supabase
-        .from('matches')
-        .select('id')
-        .eq('tournament_id', tid)
+      // NOVÉ: Použijeme PostgreSQL funkci přímo - spolehlivější než JS sčítání
+      const { data: leaderboardData, error: rpcError } = await supabase
+        .rpc('get_leaderboard', { tournament_uuid: tid })
 
-      if (!matchesData || matchesData.length === 0) {
+      if (rpcError || !leaderboardData) {
+        console.error('RPC error:', rpcError)
+        setMessage('Chyba při načítání žebříčku: ' + (rpcError?.message || 'Neznámá chyba'))
         setLeaderboard([])
         return
       }
 
-      const matchIds = matchesData.map((m: any) => m.id)
-
-      // 2. Získáme všechny predikce pro zápasy v turnaji
-      // OPRAVA: Stejný pattern jako statistiky - .not('points', 'is', null)
-      const { data: preds } = await supabase
-        .from('predictions')
-        .select('user_id, points, exact_hit, unique_exact')
-        .in('match_id', matchIds)
-        .not('points', 'is', null)
-
-      if (!preds) {
-        setLeaderboard([])
-        return
-      }
-
-      // 3. Načteme profily
+      // Načteme profily pro zobrazení jmen
       const { data: profs } = await supabase.from('profiles').select('id, nickname, first_name, last_name')
 
-      if (!profs) { setLeaderboard([]); return }
-
       const map: Record<string, any> = {}
-      profs.forEach((p: any) => map[p.id] = p)
+      profs?.forEach((p: any) => map[p.id] = p)
 
-      // 4. Seskupíme podle uživatelů - stejně jako statistiky
-      const grouped: Record<string, any> = {}
+      // Spojíme leaderboard data s profily
+      const enriched = leaderboardData.map((row: any) => ({
+        user_id: row.user_id,
+        points: Number(row.total_points),
+        exact: Number(row.exact_count),
+        unique: Number(row.unique_count),
+        profile: map[row.user_id]
+      }))
 
-      preds.forEach((row: any) => {
-        if (!grouped[row.user_id]) {
-          grouped[row.user_id] = { 
-            user_id: row.user_id, 
-            profile: map[row.user_id], 
-            exact: 0, 
-            unique: 0, 
-            points: 0 
-          }
-        }
-
-        // Stejný pattern jako statistiky: (p.points || 0)
-        grouped[row.user_id].points += (row.points || 0)
-
-        if (row.exact_hit === true) grouped[row.user_id].exact += 1
-        if (row.unique_exact === true) grouped[row.user_id].unique += 1
-      })
-
-      setLeaderboard(Object.values(grouped).sort((a: any, b: any) => b.points - a.points))
+      setLeaderboard(enriched)
     } catch (err: any) {
       setMessage('Chyba při načítání žebříčku: ' + (err?.message || 'Neznámá chyba'))
     } finally {
