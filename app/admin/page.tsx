@@ -182,11 +182,40 @@ export default function AdminPage() {
     if (!error) { setMessage('Turnaj ukončen'); loadData() }
   }
 
+  // OPRAVA: Smazání zápasu přes Supabase místo fetch API
   async function deleteMatch(id: string) {
-    const res = await fetch(`/api/matches/${id}`, { method: 'DELETE' })
-    const data = await res.json()
-    if (data.success) { setMessage('Zápas smazán'); setDeleteConfirm(null); loadData() }
-    else setMessage('Chyba mazání')
+    try {
+      // 1. Nejprve smažeme všechny predikce pro tento zápas (kvůli foreign key)
+      const { error: predError } = await supabase
+        .from('predictions')
+        .delete()
+        .eq('match_id', id)
+
+      if (predError) {
+        console.error('Chyba mazání predikcí:', predError)
+        setMessage('Chyba: Nelze smazat tipy k zápasu')
+        return
+      }
+
+      // 2. Pak smažeme samotný zápas
+      const { error: matchError } = await supabase
+        .from('matches')
+        .delete()
+        .eq('id', id)
+
+      if (matchError) {
+        console.error('Chyba mazání zápasu:', matchError)
+        setMessage('Chyba: ' + matchError.message)
+        return
+      }
+
+      setMessage('Zápas smazán')
+      setDeleteConfirm(null)
+      loadData()
+    } catch (err: any) {
+      console.error('Chyba při mazání:', err)
+      setMessage('Chyba při mazání: ' + (err?.message || 'Neznámá chyba'))
+    }
   }
 
   const visibleMatches = showFinished 
