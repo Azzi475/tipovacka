@@ -99,27 +99,27 @@ export default function AdminPage() {
     setLoadingLeaderboard(true)
     try {
       // 1. Získáme všechny zápasy v turnaji
-      const { data: matchesData, error: matchesError } = await supabase
+      const { data: matchesData } = await supabase
         .from('matches')
         .select('id')
         .eq('tournament_id', tid)
 
-      if (matchesError || !matchesData || matchesData.length === 0) {
+      if (!matchesData || matchesData.length === 0) {
         setLeaderboard([])
         return
       }
 
       const matchIds = matchesData.map((m: any) => m.id)
 
-      // 2. Získáme VŠECHNY predikce pro zápasy v tomto turnaji
-      // OPRAVA: Používáme stejný pattern jako statistiky - .not('points', 'is', null)
-      const { data: preds, error: predsError } = await supabase
+      // 2. Získáme všechny predikce pro zápasy v turnaji
+      // OPRAVA: Stejný pattern jako statistiky - .not('points', 'is', null)
+      const { data: preds } = await supabase
         .from('predictions')
         .select('user_id, points, exact_hit, unique_exact')
         .in('match_id', matchIds)
         .not('points', 'is', null)
 
-      if (predsError || !preds) {
+      if (!preds) {
         setLeaderboard([])
         return
       }
@@ -132,7 +132,7 @@ export default function AdminPage() {
       const map: Record<string, any> = {}
       profs.forEach((p: any) => map[p.id] = p)
 
-      // 4. Seskupíme podle uživatelů - stejně jako statistiky: (p.points || 0)
+      // 4. Seskupíme podle uživatelů - stejně jako statistiky
       const grouped: Record<string, any> = {}
 
       preds.forEach((row: any) => {
@@ -146,7 +146,7 @@ export default function AdminPage() {
           }
         }
 
-        // OPRAVA: Stejný pattern jako statistiky - (p.points || 0)
+        // Stejný pattern jako statistiky: (p.points || 0)
         grouped[row.user_id].points += (row.points || 0)
 
         if (row.exact_hit === true) grouped[row.user_id].exact += 1
