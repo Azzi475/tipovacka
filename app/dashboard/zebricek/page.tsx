@@ -15,8 +15,6 @@ export default function ZebricekPage() {
   useEffect(() => {
     async function load() {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
-
         const { data: t } = await supabase
           .from('tournaments')
           .select('*')
@@ -26,38 +24,33 @@ export default function ZebricekPage() {
         setTournament(t)
 
         if (t && !t.leaderboard_closed) {
-          const { data: preds } = await supabase
-            .from('predictions')
-            .select('user_id, points, exact_hit')
-            .not('points', 'is', null)
+          // POUŽIJEME STEJNOU RPC FUNKCI JAKO ADMIN – správné body ze serveru
+          const { data: leaderboardData, error: rpcError } = await supabase
+            .rpc('get_leaderboard', { tournament_uuid: t.id })
 
-          const { data: profs } = await supabase
-            .from('profiles')
-            .select('id, nickname, first_name, last_name')
-
-          if (preds && profs && preds.length > 0) {
-            const map: Record<string, any> = {}
-            profs.forEach((p: any) => map[p.id] = p)
-
-            const grouped: Record<string, any> = {}
-            preds.forEach((row: any) => {
-              if (!grouped[row.user_id]) {
-                grouped[row.user_id] = { 
-                  user_id: row.user_id, 
-                  profile: map[row.user_id], 
-                  exact: 0, 
-                  points: 0 
-                }
-              }
-              grouped[row.user_id].points += (row.points || 0)
-              if (row.exact_hit) grouped[row.user_id].exact += 1
-            })
-
-            setLeaderboard(
-              Object.values(grouped).sort((a: any, b: any) => b.points - a.points)
-            )
-          } else {
+          if (rpcError || !leaderboardData) {
+            console.error('RPC error:', rpcError)
             setLeaderboard([])
+          } else {
+            const { data: profs } = await supabase
+              .from('profiles')
+              .select('id, nickname, first_name, last_name')
+
+            const map: Record<string, any> = {}
+            profs?.forEach((p: any) => map[p.id] = p)
+
+            const enriched = leaderboardData.map((row: any) => ({
+              user_id: row.user_id,
+              points: Number(row.total_points),
+              exact: Number(row.exact_count),
+              unique: Number(row.unique_count),
+              profile: map[row.user_id]
+            }))
+
+            // Seřadíme sestupně podle bodů (pro jistotu)
+            enriched.sort((a: any, b: any) => b.points - a.points)
+
+            setLeaderboard(enriched)
           }
         }
       } catch (err) {
