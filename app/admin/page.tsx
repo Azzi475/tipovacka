@@ -28,6 +28,14 @@ type Tournament = {
   leaderboard_message: string | null
 }
 
+type Prediction = {
+  user_id: string
+  match_id: string
+  points: number | null
+  exact_hit: boolean
+  unique_exact: boolean
+}
+
 function TeamFlag({ teamName, size = 24 }: { teamName: string; size?: number }) {
   const [error, setError] = useState(false)
   if (error) {
@@ -101,12 +109,12 @@ export default function AdminPage() {
       // 1. Získáme všechny zápasy v turnaji
       const { data: matchesData, error: matchesError } = await supabase
         .from('matches')
-        .select('id')
+        .select('id, home_team_name, away_team_name, status')
         .eq('tournament_id', tid)
 
       if (matchesError) {
-        console.error('Chyba při načítání zápasů:', matchesError)
-        setMessage('Chyba: ' + matchesError.message)
+        console.error('Chyba zápasů:', matchesError)
+        setMessage('Chyba při načítání zápasů: ' + matchesError.message)
         setLeaderboard([])
         return
       }
@@ -118,37 +126,24 @@ export default function AdminPage() {
       }
 
       const matchIds = matchesData.map((m: any) => m.id)
-      console.log('Zápasů v turnaji:', matchIds.length, 'IDs:', matchIds)
 
-      // 2. Získáme VŠECHNY predikce pro zápasy v tomto turnaji (bez filtru na points!)
+      // 2. Získáme VŠECHNY predikce pro zápasy v tomto turnaji
       const { data: preds, error: predsError } = await supabase
         .from('predictions')
-        .select('user_id, points, exact_hit, unique_exact')
+        .select('user_id, match_id, points, exact_hit, unique_exact')
         .in('match_id', matchIds)
 
       if (predsError) {
-        console.error('Chyba při načítání predikcí:', predsError)
-        setMessage('Chyba: ' + predsError.message)
+        console.error('Chyba predikcí:', predsError)
+        setMessage('Chyba při načítání predikcí: ' + predsError.message)
         setLeaderboard([])
         return
-      }
-
-      console.log('Načteno predikcí:', preds?.length || 0)
-      if (preds && preds.length > 0) {
-        // Debug: ukážeme sumu bodů pro každého hráče z predikcí
-        const debugSums: Record<string, number> = {}
-        preds.forEach((row: any) => {
-          debugSums[row.user_id] = (debugSums[row.user_id] || 0) + (row.points || 0)
-        })
-        console.log('Suma bodů z predikcí (raw):', debugSums)
       }
 
       const { data: profs, error: profsError } = await supabase.from('profiles').select('id, nickname, first_name, last_name')
 
       if (profsError) {
-        console.error('Chyba při načítání profilů:', profsError)
-        setLeaderboard([])
-        return
+        console.error('Chyba profilů:', profsError)
       }
 
       if (!preds || !profs) { 
@@ -157,13 +152,13 @@ export default function AdminPage() {
         return 
       }
 
+      // 3. Seskupíme podle uživatelů - OPRAVA: správné zpracování NULL
       const map: Record<string, any> = {}
       profs.forEach((p: any) => map[p.id] = p)
 
       const grouped: Record<string, any> = {}
-      let totalPointsSum = 0
 
-      preds.forEach((row: any) => {
+      preds.forEach((row: Prediction) => {
         if (!grouped[row.user_id]) {
           grouped[row.user_id] = { 
             user_id: row.user_id, 
@@ -173,23 +168,20 @@ export default function AdminPage() {
             points: 0 
           }
         }
-        const pts = row.points === null ? 0 : Number(row.points)
+
+        // OPRAVA: int4 může být null - zpracujeme jako 0
+        const pts = row.points === null || row.points === undefined ? 0 : Number(row.points)
         grouped[row.user_id].points += pts
-        totalPointsSum += pts
-        if (row.exact_hit) grouped[row.user_id].exact += 1
-        if (row.unique_exact) grouped[row.user_id].unique += 1
+
+        if (row.exact_hit === true) grouped[row.user_id].exact += 1
+        if (row.unique_exact === true) grouped[row.user_id].unique += 1
       })
 
-      console.log('Celková suma všech bodů:', totalPointsSum)
-      console.log('Počet hráčů v žebříčku:', Object.keys(grouped).length)
-
       const sorted = Object.values(grouped).sort((a: any, b: any) => b.points - a.points)
-      console.log('Žebříček (top 5):', sorted.slice(0, 5).map((r: any) => ({ name: r.profile?.nickname || r.user_id, points: r.points })))
-
       setLeaderboard(sorted)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Chyba při načítání žebříčku:', err)
-      setMessage('Chyba při načítání žebříčku')
+      setMessage('Chyba při načítání žebříčku: ' + (err?.message || 'Neznámá chyba'))
     } finally {
       setLoadingLeaderboard(false)
     }
