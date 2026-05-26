@@ -90,8 +90,8 @@ export default function ProfilePage() {
 
       <form onSubmit={handleUpdateProfile} className="card p-6 space-y-4">
         <h3 className="text-lg font-semibold text-text-primary dark:text-white flex items-center gap-2">
-          <Image src="/icons/edit-pencil-light.svg" alt="" width={20} height={20} className="dark:hidden" unoptimized={true} />
-          <Image src="/icons/edit-pencil-dark.svg" alt="" width={20} height={20} className="hidden dark:block" unoptimized={true} />
+          <Image src="/icons/nav-profile-light.svg" alt="" width={20} height={20} className="dark:hidden" unoptimized={true} />
+          <Image src="/icons/nav-profile-dark.svg" alt="" width={20} height={20} className="hidden dark:block" unoptimized={true} />
           Osobní údaje
         </h3>
 
@@ -138,8 +138,8 @@ export default function ProfilePage() {
         )}
 
         <button type="submit" disabled={saving} className="btn-primary w-full">
-          <Image src="/icons/save-check-light.svg" alt="" width={16} height={16} className="dark:hidden" unoptimized={true} />
-          <Image src="/icons/save-check-dark.svg" alt="" width={16} height={16} className="hidden dark:block" unoptimized={true} />
+          <Image src="/icons/checkbox-empty-light.svg" alt="" width={16} height={16} className="dark:hidden" unoptimized={true} />
+          <Image src="/icons/checkbox-empty-dark.svg" alt="" width={16} height={16} className="hidden dark:block" unoptimized={true} />
           {saving ? 'Ukládání...' : 'Uložit změny'}
         </button>
       </form>
