@@ -61,6 +61,7 @@ export default function AdminPage() {
   const [newTournament, setNewTournament] = useState({ name: '', sport: 'ice_hockey', season_year: 2026 })
   const [leaderboardMsg, setLeaderboardMsg] = useState('')
   const [showFinished, setShowFinished] = useState(false)
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false)
 
   useEffect(() => {
     async function check() {
@@ -76,11 +77,11 @@ export default function AdminPage() {
   async function loadData() {
     const { data: t } = await supabase.from('tournaments').select('*').order('created_at', { ascending: false })
     setTournaments(t || [])
-    const active = t?.find(x => x.is_active)
+    const active = t?.find((x: Tournament) => x.is_active)
     const tid = selectedTournament || active?.id || (t?.[0]?.id)
     if (tid && !selectedTournament) setSelectedTournament(tid)
 
-    const current = t?.find(x => x.id === tid) || null
+    const current = t?.find((x: Tournament) => x.id === tid) || null
     setCurrentTournament(current)
     if (current?.leaderboard_message) setLeaderboardMsg(current.leaderboard_message)
 
@@ -88,23 +89,64 @@ export default function AdminPage() {
       const { data } = await supabase.from('matches').select('*').eq('tournament_id', tid).order('kickoff_at', { ascending: true })
       setMatches(data || [])
     }
-    await loadLeaderboard()
+    await loadLeaderboard(tid)
   }
 
-  async function loadLeaderboard() {
-    const { data: preds } = await supabase.from('predictions').select('user_id, points, exact_hit, unique_exact').not('points', 'is', null)
-    const { data: profs } = await supabase.from('profiles').select('id, nickname, first_name, last_name')
-    if (!preds || !profs) { setLeaderboard([]); return }
-    const map: Record<string, any> = {}
-    profs.forEach((p: any) => map[p.id] = p)
-    const grouped: Record<string, any> = {}
-    preds.forEach((row: any) => {
-      if (!grouped[row.user_id]) grouped[row.user_id] = { user_id: row.user_id, profile: map[row.user_id], exact: 0, unique: 0, points: 0 }
-      grouped[row.user_id].points += (row.points || 0)
-      if (row.exact_hit) grouped[row.user_id].exact += 1
-      if (row.unique_exact) grouped[row.user_id].unique += 1
-    })
-    setLeaderboard(Object.values(grouped).sort((a: any, b: any) => b.points - a.points))
+  async function loadLeaderboard(tournamentId?: string) {
+    const tid = tournamentId || selectedTournament
+    if (!tid) { setLeaderboard([]); return }
+
+    setLoadingLeaderboard(true)
+    try {
+      const { data: matchesData } = await supabase
+        .from('matches')
+        .select('id')
+        .eq('tournament_id', tid)
+
+      if (!matchesData || matchesData.length === 0) {
+        setLeaderboard([])
+        setLoadingLeaderboard(false)
+        return
+      }
+
+      const matchIds = matchesData.map((m: any) => m.id)
+
+      const { data: preds } = await supabase
+        .from('predictions')
+        .select('user_id, points, exact_hit, unique_exact')
+        .in('match_id', matchIds)
+        .not('points', 'is', null)
+
+      const { data: profs } = await supabase.from('profiles').select('id, nickname, first_name, last_name')
+
+      if (!preds || !profs) { setLeaderboard([]); return }
+
+      const map: Record<string, any> = {}
+      profs.forEach((p: any) => map[p.id] = p)
+
+      const grouped: Record<string, any> = {}
+      preds.forEach((row: any) => {
+        if (!grouped[row.user_id]) {
+          grouped[row.user_id] = { 
+            user_id: row.user_id, 
+            profile: map[row.user_id], 
+            exact: 0, 
+            unique: 0, 
+            points: 0 
+          }
+        }
+        grouped[row.user_id].points += (row.points || 0)
+        if (row.exact_hit) grouped[row.user_id].exact += 1
+        if (row.unique_exact) grouped[row.user_id].unique += 1
+      })
+
+      setLeaderboard(Object.values(grouped).sort((a: any, b: any) => b.points - a.points))
+    } catch (err) {
+      console.error('Chyba při načítání žebříčku:', err)
+      setMessage('Chyba při načítání žebříčku')
+    } finally {
+      setLoadingLeaderboard(false)
+    }
   }
 
   async function toggleLeaderboard() {
@@ -166,10 +208,9 @@ export default function AdminPage() {
     else setMessage('Chyba mazání')
   }
 
-  // Filtrování zápasů pro admina
   const visibleMatches = showFinished 
     ? matches 
-    : matches.filter(m => m.status !== 'finished')
+    : matches.filter((m: Match) => m.status !== 'finished')
 
   if (isAdmin === null) return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center"><div className="animate-pulse text-gray-500 dark:text-gray-400">Načítání...</div></div>
   if (isAdmin === false) return (
@@ -259,7 +300,6 @@ export default function AdminPage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-bold text-gray-900 dark:text-white">Správa zápasů</h2>
                 <div className="flex items-center gap-3">
-                  {/* TOGGLE FILTR */}
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-600 dark:text-gray-400">Zobrazit odehrané</span>
                     <button
@@ -304,9 +344,9 @@ export default function AdminPage() {
               {visibleMatches.map(m => (
                 <MatchCard key={m.id} match={m} onRefresh={loadData} setMessage={setMessage} isDeleting={deleteConfirm === m.id} onConfirmDelete={() => setDeleteConfirm(m.id)} onDelete={() => deleteMatch(m.id)} onCancelDelete={() => setDeleteConfirm(null)} />
               ))}
-              {!showFinished && matches.filter(m => m.status === 'finished').length > 0 && (
+              {!showFinished && matches.filter((m: Match) => m.status === 'finished').length > 0 && (
                 <div className="text-center py-4 text-gray-400 dark:text-gray-500 text-sm">
-                  {matches.filter(m => m.status === 'finished').length} odehraných zápasů skryto
+                  {matches.filter((m: Match) => m.status === 'finished').length} odehraných zápasů skryto
                 </div>
               )}
             </div>
@@ -353,6 +393,17 @@ export default function AdminPage() {
                       {currentTournament.leaderboard_closed ? 'Otevřít žebříček hráčům' : 'Uzavřít žebříček hráčům'}
                     </button>
 
+                    <button
+                      onClick={() => loadLeaderboard()}
+                      disabled={loadingLeaderboard}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <svg className={`w-4 h-4 ${loadingLeaderboard ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      {loadingLeaderboard ? 'Aktualizuji...' : 'Aktualizovat žebříček'}
+                    </button>
+
                     <span className={`text-sm font-medium px-3 py-1.5 rounded-full ${
                       currentTournament.leaderboard_closed 
                         ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' 
@@ -365,7 +416,7 @@ export default function AdminPage() {
               </div>
             )}
 
-            <LeaderboardTab leaderboard={leaderboard} />
+            <LeaderboardTab leaderboard={leaderboard} loading={loadingLeaderboard} />
           </div>
         )}
       </main>
@@ -494,7 +545,7 @@ function MatchCard({ match, onRefresh, setMessage, isDeleting, onConfirmDelete, 
   )
 }
 
-function LeaderboardTab({ leaderboard }: { leaderboard: any[] }) {
+function LeaderboardTab({ leaderboard, loading }: { leaderboard: any[]; loading?: boolean }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
       <div className="p-6 border-b border-gray-100 dark:border-gray-700">
@@ -502,8 +553,14 @@ function LeaderboardTab({ leaderboard }: { leaderboard: any[] }) {
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Admin vidí všechny hráče, body a přesné tipy</p>
       </div>
       <div className="divide-y divide-gray-100 dark:divide-gray-700">
-        {leaderboard.length === 0 && <div className="p-8 text-center text-gray-400 dark:text-gray-500">Zatím žádná data</div>}
-        {leaderboard.map((row, idx) => {
+        {loading && (
+          <div className="p-8 text-center text-gray-400 dark:text-gray-500">
+            <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-2"></div>
+            Načítání žebříčku...
+          </div>
+        )}
+        {!loading && leaderboard.length === 0 && <div className="p-8 text-center text-gray-400 dark:text-gray-500">Zatím žádná data</div>}
+        {!loading && leaderboard.map((row, idx) => {
           const name = row.profile?.nickname || `${row.profile?.first_name || ''} ${row.profile?.last_name || ''}`.trim() || 'Neznámý'
           return (
             <div key={row.user_id} className="p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
@@ -519,7 +576,6 @@ function LeaderboardTab({ leaderboard }: { leaderboard: any[] }) {
                 <div className="font-bold text-gray-900 dark:text-white truncate">{name}</div>
                 {row.profile?.nickname && <div className="text-xs text-gray-500 dark:text-gray-400">{row.profile?.first_name} {row.profile?.last_name}</div>}
               </div>
-              {/* Statistiky - Body, Přesné, Unikátní */}
               <div className="text-right shrink-0 flex gap-4">
                 <div>
                   <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{row.points}</div>
