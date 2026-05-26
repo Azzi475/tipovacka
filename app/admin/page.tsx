@@ -62,6 +62,7 @@ export default function AdminPage() {
   const [leaderboardMsg, setLeaderboardMsg] = useState('')
   const [showFinished, setShowFinished] = useState(false)
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     async function check() {
@@ -98,7 +99,6 @@ export default function AdminPage() {
 
     setLoadingLeaderboard(true)
     try {
-      // NOVÉ: Použijeme PostgreSQL funkci přímo - spolehlivější než JS sčítání
       const { data: leaderboardData, error: rpcError } = await supabase
         .rpc('get_leaderboard', { tournament_uuid: tid })
 
@@ -109,13 +109,11 @@ export default function AdminPage() {
         return
       }
 
-      // Načteme profily pro zobrazení jmen
       const { data: profs } = await supabase.from('profiles').select('id, nickname, first_name, last_name')
 
       const map: Record<string, any> = {}
       profs?.forEach((p: any) => map[p.id] = p)
 
-      // Spojíme leaderboard data s profily
       const enriched = leaderboardData.map((row: any) => ({
         user_id: row.user_id,
         points: Number(row.total_points),
@@ -210,22 +208,127 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
+      {/* ===== NAVBAR S HAMBURGER MENU ===== */}
       <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex gap-4 items-center">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+          {/* Logo vlevo */}
           <span className="font-bold text-lg text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
             <Image src={theme === 'dark' ? '/icons/logo-trophy-dark.png' : '/icons/logo-trophy-light.png'} alt="Admin" width={24} height={24} unoptimized={true} />
             Admin
           </span>
-          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-            <button onClick={() => setActiveTab('matches')} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${activeTab === 'matches' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>Zápasy</button>
-            <button onClick={() => { setActiveTab('leaderboard'); loadLeaderboard() }} className={`px-4 py-1.5 rounded-md text-sm font-medium transition ${activeTab === 'leaderboard' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}>Žebříček</button>
-          </div>
-          <div className="ml-auto flex gap-3 items-center">
-            <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition">
-              <Image src={theme === 'light' ? '/icons/theme-moon.svg' : '/icons/theme-sun.svg'} alt="Theme" width={20} height={20} unoptimized={true} />
+
+          {/* Pravá část: Toggle odehrané (jen v zápasech) + Theme + Hamburger */}
+          <div className="flex items-center gap-3">
+            {/* Toggle Zobrazit odehrané - jen když jsme v zápasech */}
+            {activeTab === 'matches' && (
+              <div className="flex items-center gap-2 mr-1">
+                <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">Odehrané</span>
+                <button
+                  onClick={() => setShowFinished(!showFinished)}
+                  className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${
+                    showFinished ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                  }`}
+                  title={showFinished ? 'Skrýt odehrané' : 'Zobrazit odehrané'}
+                >
+                  <span
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                      showFinished ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
+
+            {/* Theme toggle */}
+            <button 
+              onClick={toggleTheme} 
+              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+              title={theme === 'light' ? 'Tmavý režim' : 'Světlý režim'}
+            >
+              <Image 
+                src={theme === 'light' ? '/icons/theme-moon.svg' : '/icons/theme-sun.svg'} 
+                alt="Theme" 
+                width={20} 
+                height={20} 
+                unoptimized={true} 
+              />
             </button>
-            <Link href="/dashboard" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition">Hráč</Link>
-            <form action="/api/auth/logout" method="post"><button type="submit" className="text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md transition">Odhlásit</button></form>
+
+            {/* Hamburger menu */}
+            <div className="relative">
+              <button
+                onClick={() => setMenuOpen(!menuOpen)}
+                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                title="Menu"
+              >
+                <svg className="w-6 h-6 text-gray-700 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+
+              {/* Dropdown menu */}
+              {menuOpen && (
+                <>
+                  {/* Overlay pro zavření kliknutím mimo */}
+                  <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden z-50 py-1">
+                    <button
+                      onClick={() => { setActiveTab('matches'); setMenuOpen(false); }}
+                      className={`w-full text-left px-4 py-2.5 text-sm font-medium transition flex items-center gap-2 ${
+                        activeTab === 'matches' 
+                          ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Zápasy
+                    </button>
+
+                    <button
+                      onClick={() => { setActiveTab('leaderboard'); loadLeaderboard(); setMenuOpen(false); }}
+                      className={`w-full text-left px-4 py-2.5 text-sm font-medium transition flex items-center gap-2 ${
+                        activeTab === 'leaderboard' 
+                          ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                      Žebříček
+                    </button>
+
+                    <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
+
+                    <Link
+                      href="/dashboard"
+                      onClick={() => setMenuOpen(false)}
+                      className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      Hráč
+                    </Link>
+
+                    <form action="/api/auth/logout" method="post" className="m-0">
+                      <button 
+                        type="submit" 
+                        className="w-full text-left px-4 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        Odhlásit
+                      </button>
+                    </form>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </nav>
@@ -283,21 +386,6 @@ export default function AdminPage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-bold text-gray-900 dark:text-white">Správa zápasů</h2>
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Zobrazit odehrané</span>
-                    <button
-                      onClick={() => setShowFinished(!showFinished)}
-                      className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
-                        showFinished ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
-                      }`}
-                    >
-                      <span
-                        className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
-                          showFinished ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
                   <button onClick={() => setShowAddForm(!showAddForm)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition flex items-center gap-1">
                     <Image src={showAddForm ? '/icons/close-x-light.svg' : '/icons/add-plus-light.svg'} alt="" width={14} height={14} className="invert" unoptimized={true} />
                     {showAddForm ? 'Zavřít' : 'Přidat zápas'}
