@@ -98,33 +98,71 @@ export default function AdminPage() {
 
     setLoadingLeaderboard(true)
     try {
-      const { data: matchesData } = await supabase
+      // 1. Získáme všechny zápasy v turnaji
+      const { data: matchesData, error: matchesError } = await supabase
         .from('matches')
         .select('id')
         .eq('tournament_id', tid)
 
-      if (!matchesData || matchesData.length === 0) {
+      if (matchesError) {
+        console.error('Chyba při načítání zápasů:', matchesError)
+        setMessage('Chyba: ' + matchesError.message)
         setLeaderboard([])
-        setLoadingLeaderboard(false)
+        return
+      }
+
+      if (!matchesData || matchesData.length === 0) {
+        console.log('Žádné zápasy v turnaji', tid)
+        setLeaderboard([])
         return
       }
 
       const matchIds = matchesData.map((m: any) => m.id)
+      console.log('Zápasů v turnaji:', matchIds.length, 'IDs:', matchIds)
 
-      const { data: preds } = await supabase
+      // 2. Získáme VŠECHNY predikce pro zápasy v tomto turnaji (bez filtru na points!)
+      const { data: preds, error: predsError } = await supabase
         .from('predictions')
         .select('user_id, points, exact_hit, unique_exact')
         .in('match_id', matchIds)
-        .not('points', 'is', null)
 
-      const { data: profs } = await supabase.from('profiles').select('id, nickname, first_name, last_name')
+      if (predsError) {
+        console.error('Chyba při načítání predikcí:', predsError)
+        setMessage('Chyba: ' + predsError.message)
+        setLeaderboard([])
+        return
+      }
 
-      if (!preds || !profs) { setLeaderboard([]); return }
+      console.log('Načteno predikcí:', preds?.length || 0)
+      if (preds && preds.length > 0) {
+        // Debug: ukážeme sumu bodů pro každého hráče z predikcí
+        const debugSums: Record<string, number> = {}
+        preds.forEach((row: any) => {
+          debugSums[row.user_id] = (debugSums[row.user_id] || 0) + (row.points || 0)
+        })
+        console.log('Suma bodů z predikcí (raw):', debugSums)
+      }
+
+      const { data: profs, error: profsError } = await supabase.from('profiles').select('id, nickname, first_name, last_name')
+
+      if (profsError) {
+        console.error('Chyba při načítání profilů:', profsError)
+        setLeaderboard([])
+        return
+      }
+
+      if (!preds || !profs) { 
+        console.log('Chybí data - preds:', preds?.length, 'profs:', profs?.length)
+        setLeaderboard([]) 
+        return 
+      }
 
       const map: Record<string, any> = {}
       profs.forEach((p: any) => map[p.id] = p)
 
       const grouped: Record<string, any> = {}
+      let totalPointsSum = 0
+
       preds.forEach((row: any) => {
         if (!grouped[row.user_id]) {
           grouped[row.user_id] = { 
@@ -135,12 +173,20 @@ export default function AdminPage() {
             points: 0 
           }
         }
-        grouped[row.user_id].points += (row.points || 0)
+        const pts = row.points === null ? 0 : Number(row.points)
+        grouped[row.user_id].points += pts
+        totalPointsSum += pts
         if (row.exact_hit) grouped[row.user_id].exact += 1
         if (row.unique_exact) grouped[row.user_id].unique += 1
       })
 
-      setLeaderboard(Object.values(grouped).sort((a: any, b: any) => b.points - a.points))
+      console.log('Celková suma všech bodů:', totalPointsSum)
+      console.log('Počet hráčů v žebříčku:', Object.keys(grouped).length)
+
+      const sorted = Object.values(grouped).sort((a: any, b: any) => b.points - a.points)
+      console.log('Žebříček (top 5):', sorted.slice(0, 5).map((r: any) => ({ name: r.profile?.nickname || r.user_id, points: r.points })))
+
+      setLeaderboard(sorted)
     } catch (err) {
       console.error('Chyba při načítání žebříčku:', err)
       setMessage('Chyba při načítání žebříčku')
