@@ -26,6 +26,10 @@ type Tournament = {
   is_active: boolean
   leaderboard_closed: boolean
   leaderboard_message: string | null
+  admin_message?: string | null
+  admin_message_sent_at?: string | null
+  background_theme?: string | null
+  leaderboard_show_details?: boolean
 }
 
 function TeamFlag({ teamName, size = 24 }: { teamName: string; size?: number }) {
@@ -63,6 +67,8 @@ export default function AdminPage() {
   const [showFinished, setShowFinished] = useState(false)
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [adminMsg, setAdminMsg] = useState('')
+  const [sendingMsg, setSendingMsg] = useState(false)
 
   useEffect(() => {
     async function check() {
@@ -182,39 +188,79 @@ export default function AdminPage() {
     if (!error) { setMessage('Turnaj ukončen'); loadData() }
   }
 
-  // OPRAVA: Smazání zápasu přes Supabase místo fetch API
   async function deleteMatch(id: string) {
     try {
-      // 1. Nejprve smažeme všechny predikce pro tento zápas (kvůli foreign key)
-      const { error: predError } = await supabase
-        .from('predictions')
-        .delete()
-        .eq('match_id', id)
-
+      const { error: predError } = await supabase.from('predictions').delete().eq('match_id', id)
       if (predError) {
         console.error('Chyba mazání predikcí:', predError)
         setMessage('Chyba: Nelze smazat tipy k zápasu')
         return
       }
-
-      // 2. Pak smažeme samotný zápas
-      const { error: matchError } = await supabase
-        .from('matches')
-        .delete()
-        .eq('id', id)
-
+      const { error: matchError } = await supabase.from('matches').delete().eq('id', id)
       if (matchError) {
         console.error('Chyba mazání zápasu:', matchError)
         setMessage('Chyba: ' + matchError.message)
         return
       }
-
       setMessage('Zápas smazán')
       setDeleteConfirm(null)
       loadData()
     } catch (err: any) {
       console.error('Chyba při mazání:', err)
       setMessage('Chyba při mazání: ' + (err?.message || 'Neznámá chyba'))
+    }
+  }
+
+  // ===== NOVÉ FUNKCE =====
+  async function sendAdminMessage() {
+    if (!currentTournament || !adminMsg.trim()) return
+    setSendingMsg(true)
+    const { error } = await supabase
+      .from('tournaments')
+      .update({
+        admin_message: adminMsg.trim(),
+        admin_message_sent_at: new Date().toISOString()
+      })
+      .eq('id', currentTournament.id)
+
+    if (error) {
+      setMessage('Chyba: ' + error.message)
+    } else {
+      setMessage('Zpráva odeslána všem hráčům!')
+      setCurrentTournament({ ...currentTournament, admin_message: adminMsg.trim(), admin_message_sent_at: new Date().toISOString() })
+      setAdminMsg('')
+    }
+    setSendingMsg(false)
+  }
+
+  async function setBackground(theme: string) {
+    if (!currentTournament) return
+    const { error } = await supabase
+      .from('tournaments')
+      .update({ background_theme: theme || null })
+      .eq('id', currentTournament.id)
+
+    if (error) {
+      setMessage('Chyba: ' + error.message)
+    } else {
+      setMessage(theme ? `Pozadí nastaveno` : 'Pozadí odstraněno')
+      setCurrentTournament({ ...currentTournament, background_theme: theme || null })
+    }
+  }
+
+  async function toggleShowDetails() {
+    if (!currentTournament) return
+    const newVal = !currentTournament.leaderboard_show_details
+    const { error } = await supabase
+      .from('tournaments')
+      .update({ leaderboard_show_details: newVal })
+      .eq('id', currentTournament.id)
+
+    if (error) {
+      setMessage('Chyba: ' + error.message)
+    } else {
+      setMessage(newVal ? 'Detaily zobrazeny v žebříčku hráčů' : 'Detaily skryty v žebříčku hráčů')
+      setCurrentTournament({ ...currentTournament, leaderboard_show_details: newVal })
     }
   }
 
@@ -240,15 +286,12 @@ export default function AdminPage() {
       {/* ===== NAVBAR S HAMBURGER MENU ===== */}
       <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          {/* Logo vlevo */}
           <span className="font-bold text-lg text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
             <Image src={theme === 'dark' ? '/icons/logo-trophy-dark.png' : '/icons/logo-trophy-light.png'} alt="Admin" width={24} height={24} unoptimized={true} />
             Admin
           </span>
 
-          {/* Pravá část: Toggle odehrané (jen v zápasech) + Theme + Hamburger */}
           <div className="flex items-center gap-3">
-            {/* Toggle Zobrazit odehrané - jen když jsme v zápasech */}
             {activeTab === 'matches' && (
               <div className="flex items-center gap-2 mr-1">
                 <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">Odehrané</span>
@@ -268,7 +311,6 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Theme toggle */}
             <button 
               onClick={toggleTheme} 
               className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition"
@@ -283,7 +325,6 @@ export default function AdminPage() {
               />
             </button>
 
-            {/* Hamburger menu */}
             <div className="relative">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
@@ -295,12 +336,9 @@ export default function AdminPage() {
                 </svg>
               </button>
 
-              {/* Dropdown menu */}
               {menuOpen && (
                 <>
-                  {/* Overlay pro zavření kliknutím mimo */}
                   <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-
                   <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden z-50 py-1">
                     <button
                       onClick={() => { setActiveTab('matches'); setMenuOpen(false); }}
@@ -409,6 +447,89 @@ export default function AdminPage() {
           )}
         </div>
 
+        {/* ===== NASTAVENÍ TURNAJE (ZPRÁVA + POZADÍ) ===== */}
+        {currentTournament && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
+            <h3 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Nastavení turnaje
+            </h3>
+
+            {/* Zpráva hráčům */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Zpráva hráčům (zobrazí se všem při otevření dashboardu)
+              </label>
+              <textarea
+                value={adminMsg}
+                onChange={(e) => setAdminMsg(e.target.value)}
+                placeholder="Napiš zprávu, která hráčům vyskočí po přihlášení..."
+                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px] resize-y text-sm mb-2"
+              />
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  onClick={sendAdminMessage}
+                  disabled={sendingMsg || !adminMsg.trim()}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-50"
+                >
+                  {sendingMsg ? 'Odesílám...' : 'Odeslat zprávu'}
+                </button>
+                {currentTournament.admin_message && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    Aktuální: <span className="italic">{currentTournament.admin_message.substring(0, 60)}{currentTournament.admin_message.length > 60 ? '...' : ''}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Pozadí turnaje */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Pozadí pro hráče (50 % průhlednost na dashboardu)
+              </label>
+              <div className="flex gap-3 flex-wrap">
+                {[
+                  { key: 'hockey-light', label: 'Hokej světlý' },
+                  { key: 'hockey-dark', label: 'Hokej tmavý' },
+                  { key: 'football-light', label: 'Fotbal světlý' },
+                  { key: 'football-dark', label: 'Fotbal tmavý' },
+                ].map((bg) => (
+                  <button
+                    key={bg.key}
+                    onClick={() => setBackground(bg.key)}
+                    className={`relative w-36 h-24 rounded-xl border-2 overflow-hidden transition ${
+                      currentTournament.background_theme === bg.key
+                        ? 'border-blue-600 ring-2 ring-blue-500'
+                        : 'border-gray-200 dark:border-gray-600 hover:border-blue-400'
+                    }`}
+                  >
+                    <div
+                      className="absolute inset-0 bg-cover bg-center"
+                      style={{ backgroundImage: `url(/images/${bg.key}.png)` }}
+                    />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <span className="text-xs font-bold text-white drop-shadow-md">{bg.label}</span>
+                    </div>
+                  </button>
+                ))}
+                <button
+                  onClick={() => setBackground('')}
+                  className={`w-36 h-24 rounded-xl border-2 border-dashed flex items-center justify-center text-xs font-medium transition ${
+                    !currentTournament.background_theme
+                      ? 'border-blue-600 text-blue-600 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400'
+                  }`}
+                >
+                  Žádné pozadí
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'matches' ? (
           <div>
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
@@ -510,6 +631,27 @@ export default function AdminPage() {
                         : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
                     }`}>
                       {currentTournament.leaderboard_closed ? '🔒 Uzavřeno pro hráče' : '👀 Viditelné pro hráče'}
+                    </span>
+                  </div>
+
+                  {/* ===== TOGGLE DETAILŮ V ŽEBŘÍČKU ===== */}
+                  <div className="flex items-center gap-3 pt-4 border-t border-gray-100 dark:border-gray-700">
+                    <button
+                      onClick={toggleShowDetails}
+                      className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${
+                        currentTournament.leaderboard_show_details ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                          currentTournament.leaderboard_show_details ? 'translate-x-4' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      {currentTournament.leaderboard_show_details 
+                        ? 'Zobrazit body, přesné a unikátní tipy v žebříčku hráčů' 
+                        : 'Skrýt detaily v žebříčku hráčů (zobrazit pouze # a jméno)'}
                     </span>
                   </div>
                 </div>

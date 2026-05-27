@@ -24,7 +24,6 @@ export default function ZebricekPage() {
         setTournament(t)
 
         if (t && !t.leaderboard_closed) {
-          // POUŽIJEME STEJNOU RPC FUNKCI JAKO ADMIN – správné body ze serveru
           const { data: leaderboardData, error: rpcError } = await supabase
             .rpc('get_leaderboard', { tournament_uuid: t.id })
 
@@ -47,8 +46,12 @@ export default function ZebricekPage() {
               profile: map[row.user_id]
             }))
 
-            // Seřadíme sestupně podle bodů (pro jistotu)
-            enriched.sort((a: any, b: any) => b.points - a.points)
+            // Tie-breaker: při shodě bodů upřednostnit vyšší unikátní, pak přesné
+            enriched.sort((a: any, b: any) => {
+              if (b.points !== a.points) return b.points - a.points
+              if (b.unique !== a.unique) return b.unique - a.unique
+              return b.exact - a.exact
+            })
 
             setLeaderboard(enriched)
           }
@@ -89,15 +92,26 @@ export default function ZebricekPage() {
     )
   }
 
+  const showDetails = tournament?.leaderboard_show_details === true
+
   return (
     <div>
       <h1 className="text-[32px] leading-[40px] font-semibold text-text-primary dark:text-white mb-6">Žebříček</h1>
       <div className="bg-white dark:bg-card-dark rounded-2xl shadow-sm border border-gray-200 dark:border-border-dark overflow-hidden">
-        {/* Hlavička tabulky - pouze # a Hráč */}
+        {/* Hlavička tabulky */}
         <div className="p-4 bg-gray-50 dark:bg-border-dark/50 border-b border-gray-200 dark:border-border-dark">
-          <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-            <div className="col-span-2">#</div>
-            <div className="col-span-10">Hráč</div>
+          <div className={`grid gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${
+            showDetails ? 'grid-cols-12' : 'grid-cols-12'
+          }`}>
+            <div className="col-span-1">#</div>
+            <div className={showDetails ? 'col-span-5' : 'col-span-11'}>Hráč</div>
+            {showDetails && (
+              <>
+                <div className="col-span-2 text-center">Body</div>
+                <div className="col-span-2 text-center">Přesných</div>
+                <div className="col-span-2 text-center">Unikátních</div>
+              </>
+            )}
           </div>
         </div>
         <div className="divide-y divide-gray-100 dark:divide-border-dark">
@@ -120,12 +134,28 @@ export default function ZebricekPage() {
                     {idx + 1}
                   </span>
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className={`min-w-0 ${showDetails ? 'flex-1' : 'flex-1'}`}>
                   <div className="font-bold text-text-primary dark:text-white truncate">{name}</div>
                   {row.profile?.nickname && (
                     <div className="text-xs text-gray-500 dark:text-gray-400">{row.profile?.first_name} {row.profile?.last_name}</div>
                   )}
                 </div>
+                {showDetails && (
+                  <div className="flex gap-4 shrink-0 ml-4">
+                    <div className="text-center w-16">
+                      <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{row.points}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">bodů</div>
+                    </div>
+                    <div className="text-center w-16">
+                      <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{row.exact}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">přesných</div>
+                    </div>
+                    <div className="text-center w-16">
+                      <div className="text-lg font-bold text-yellow-600 dark:text-yellow-400">{row.unique}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">unikátních</div>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })}

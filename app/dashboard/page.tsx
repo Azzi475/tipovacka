@@ -56,6 +56,9 @@ export default function TipsPage() {
   const [predictions, setPredictions] = useState<Record<string, Prediction>>({})
   const [loading, setLoading] = useState(true)
   const [showFinished, setShowFinished] = useState(false)
+  const [bgTheme, setBgTheme] = useState<string | null>(null)
+  const [showAdminModal, setShowAdminModal] = useState(false)
+  const [adminModalText, setAdminModalText] = useState('')
 
   useEffect(() => {
     loadData()
@@ -71,13 +74,35 @@ export default function TipsPage() {
 
     const { data: tournament } = await supabase
       .from('tournaments')
-      .select('id')
+      .select('id, admin_message, admin_message_sent_at, background_theme')
       .eq('is_active', true)
       .single()
 
     if (!tournament) {
       setLoading(false)
       return
+    }
+
+    // Nastavení pozadí
+    setBgTheme(tournament.background_theme || null)
+
+    // Kontrola admin zprávy
+    if (tournament.admin_message && tournament.admin_message_sent_at) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('last_message_dismissed_at')
+        .eq('id', user.id)
+        .single()
+
+      const msgTime = new Date(tournament.admin_message_sent_at).getTime()
+      const dismissedTime = profile?.last_message_dismissed_at
+        ? new Date(profile.last_message_dismissed_at).getTime()
+        : 0
+
+      if (msgTime > dismissedTime) {
+        setAdminModalText(tournament.admin_message)
+        setShowAdminModal(true)
+      }
     }
 
     const { data: matchesData } = await supabase
@@ -99,6 +124,19 @@ export default function TipsPage() {
     setMatches(matchesData || [])
     setPredictions(predMap)
     setLoading(false)
+  }
+
+  async function dismissAdminMessage() {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    await supabase
+      .from('profiles')
+      .update({ last_message_dismissed_at: new Date().toISOString() })
+      .eq('id', user.id)
+
+    setShowAdminModal(false)
   }
 
   const handlePredict = async (matchId: string, home: number, away: number) => {
@@ -138,53 +176,110 @@ export default function TipsPage() {
     ? matches 
     : matches.filter(m => m.status !== 'finished')
 
-  if (loading) return <div className="text-center py-8 text-gray-500">Načítání...</div>
+  if (loading) return (
+    <div className="relative z-10 text-center py-8 text-gray-500 dark:text-gray-400">
+      Načítání...
+    </div>
+  )
 
   if (matches.length === 0) {
     return (
-      <div className="text-center py-12">
+      <div className="relative z-10 text-center py-12">
         <p className="text-gray-500 dark:text-gray-400">Žádné zápasy k dispozici</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-4 py-4">
-      {/* Hlavička s toggle */}
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-[32px] leading-[40px] font-semibold text-text-primary dark:text-white">Moje tipy</h2>
-
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-600 dark:text-gray-400">Zobrazit odehrané</span>
-          <button
-            onClick={() => setShowFinished(!showFinished)}
-            className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
-              showFinished ? 'bg-primary-blue' : 'bg-gray-300 dark:bg-gray-600'
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
-                showFinished ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            />
-          </button>
-        </div>
-      </div>
-
-      {visibleMatches.map((match) => (
-        <MatchCard
-          key={match.id}
-          match={match}
-          prediction={predictions[match.id]}
-          onPredict={handlePredict}
+    <div className="relative min-h-screen">
+      {/* Pozadí turnaje */}
+      {bgTheme && (
+        <div
+          className="fixed inset-0 z-0 pointer-events-none"
+          style={{
+            backgroundImage: `url(/images/${bgTheme}.png)`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            opacity: 0.5,
+          }}
         />
-      ))}
+      )}
 
-      {!showFinished && matches.filter(m => m.status === 'finished').length > 0 && (
-        <div className="text-center py-4 text-gray-400 dark:text-gray-500 text-sm">
-          {matches.filter(m => m.status === 'finished').length} odehraných zápasů skryto
+      {/* Modal admin zprávy */}
+      {showAdminModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-2xl border border-gray-200 dark:border-gray-700">
+            <div className="flex justify-center mb-4">
+              <Image 
+                src="/icons/logo-trophy-light.png" 
+                alt="Info" 
+                width={48} 
+                height={48} 
+                className="dark:hidden"
+                unoptimized={true} 
+              />
+              <Image 
+                src="/icons/logo-trophy-dark.png" 
+                alt="Info" 
+                width={48} 
+                height={48} 
+                className="hidden dark:block"
+                unoptimized={true} 
+              />
+            </div>
+            <h2 className="text-xl font-bold text-center text-gray-900 dark:text-white mb-4">
+              Zpráva od admina
+            </h2>
+            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap mb-6 leading-relaxed">
+              {adminModalText}
+            </p>
+            <button
+              onClick={dismissAdminMessage}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition"
+            >
+              OK, rozumím
+            </button>
+          </div>
         </div>
       )}
+
+      <div className="relative z-10 space-y-4 py-4">
+        {/* Hlavička s toggle */}
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-[32px] leading-[40px] font-semibold text-text-primary dark:text-white">Moje tipy</h2>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Zobrazit odehrané</span>
+            <button
+              onClick={() => setShowFinished(!showFinished)}
+              className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
+                showFinished ? 'bg-primary-blue' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${
+                  showFinished ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {visibleMatches.map((match) => (
+          <MatchCard
+            key={match.id}
+            match={match}
+            prediction={predictions[match.id]}
+            onPredict={handlePredict}
+          />
+        ))}
+
+        {!showFinished && matches.filter(m => m.status === 'finished').length > 0 && (
+          <div className="text-center py-4 text-gray-400 dark:text-gray-500 text-sm">
+            {matches.filter(m => m.status === 'finished').length} odehraných zápasů skryto
+          </div>
+        )}
+      </div>
     </div>
   )
 }
