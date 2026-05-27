@@ -56,7 +56,7 @@ export default function AdminPage() {
   const [currentTournament, setCurrentTournament] = useState<Tournament | null>(null)
   const [selectedTournament, setSelectedTournament] = useState<string>('')
   const [leaderboard, setLeaderboard] = useState<any[]>([])
-  const [activeTab, setActiveTab] = useState<'matches' | 'leaderboard'>('matches')
+  const [activeTab, setActiveTab] = useState<'matches' | 'leaderboard' | 'settings'>('matches')
   const [message, setMessage] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -211,7 +211,6 @@ export default function AdminPage() {
     }
   }
 
-  // ===== NOVÉ FUNKCE =====
   async function sendAdminMessage() {
     if (!currentTournament || !adminMsg.trim()) return
     setSendingMsg(true)
@@ -368,6 +367,21 @@ export default function AdminPage() {
                       Žebříček
                     </button>
 
+                    <button
+                      onClick={() => { setActiveTab('settings'); setMenuOpen(false); }}
+                      className={`w-full text-left px-4 py-2.5 text-sm font-medium transition flex items-center gap-2 ${
+                        activeTab === 'settings' 
+                          ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      Nastavení
+                    </button>
+
                     <div className="border-t border-gray-100 dark:border-gray-700 my-1" />
 
                     <Link
@@ -447,89 +461,6 @@ export default function AdminPage() {
           )}
         </div>
 
-        {/* ===== NASTAVENÍ TURNAJE (ZPRÁVA + POZADÍ) ===== */}
-        {currentTournament && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
-            <h3 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Nastavení turnaje
-            </h3>
-
-            {/* Zpráva hráčům */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Zpráva hráčům (zobrazí se všem při otevření dashboardu)
-              </label>
-              <textarea
-                value={adminMsg}
-                onChange={(e) => setAdminMsg(e.target.value)}
-                placeholder="Napiš zprávu, která hráčům vyskočí po přihlášení..."
-                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px] resize-y text-sm mb-2"
-              />
-              <div className="flex items-center gap-3 flex-wrap">
-                <button
-                  onClick={sendAdminMessage}
-                  disabled={sendingMsg || !adminMsg.trim()}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-50"
-                >
-                  {sendingMsg ? 'Odesílám...' : 'Odeslat zprávu'}
-                </button>
-                {currentTournament.admin_message && (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    Aktuální: <span className="italic">{currentTournament.admin_message.substring(0, 60)}{currentTournament.admin_message.length > 60 ? '...' : ''}</span>
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Pozadí turnaje */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Pozadí pro hráče (50 % průhlednost na dashboardu)
-              </label>
-              <div className="flex gap-3 flex-wrap">
-                {[
-                  { key: 'hockey-light', label: 'Hokej světlý' },
-                  { key: 'hockey-dark', label: 'Hokej tmavý' },
-                  { key: 'football-light', label: 'Fotbal světlý' },
-                  { key: 'football-dark', label: 'Fotbal tmavý' },
-                ].map((bg) => (
-                  <button
-                    key={bg.key}
-                    onClick={() => setBackground(bg.key)}
-                    className={`relative w-36 h-24 rounded-xl border-2 overflow-hidden transition ${
-                      currentTournament.background_theme === bg.key
-                        ? 'border-blue-600 ring-2 ring-blue-500'
-                        : 'border-gray-200 dark:border-gray-600 hover:border-blue-400'
-                    }`}
-                  >
-                    <div
-                      className="absolute inset-0 bg-cover bg-center"
-                      style={{ backgroundImage: `url(/images/${bg.key}.png)` }}
-                    />
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <span className="text-xs font-bold text-white drop-shadow-md">{bg.label}</span>
-                    </div>
-                  </button>
-                ))}
-                <button
-                  onClick={() => setBackground('')}
-                  className={`w-36 h-24 rounded-xl border-2 border-dashed flex items-center justify-center text-xs font-medium transition ${
-                    !currentTournament.background_theme
-                      ? 'border-blue-600 text-blue-600 bg-blue-50 dark:bg-blue-900/20'
-                      : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400'
-                  }`}
-                >
-                  Žádné pozadí
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {activeTab === 'matches' ? (
           <div>
             <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
@@ -572,7 +503,7 @@ export default function AdminPage() {
               )}
             </div>
           </div>
-        ) : (
+        ) : activeTab === 'leaderboard' ? (
           <div className="space-y-6">
             {currentTournament && (
               <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm">
@@ -634,7 +565,6 @@ export default function AdminPage() {
                     </span>
                   </div>
 
-                  {/* ===== TOGGLE DETAILŮ V ŽEBŘÍČKU ===== */}
                   <div className="flex items-center gap-3 pt-4 border-t border-gray-100 dark:border-gray-700">
                     <button
                       onClick={toggleShowDetails}
@@ -659,6 +589,95 @@ export default function AdminPage() {
             )}
 
             <LeaderboardTab leaderboard={leaderboard} loading={loadingLeaderboard} />
+          </div>
+        ) : (
+          /* ===== ZÁLOŽKA NASTAVENÍ ===== */
+          <div className="space-y-6">
+            {currentTournament ? (
+              <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm">
+                <h3 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Nastavení turnaje
+                </h3>
+
+                {/* Zpráva hráčům */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Zpráva hráčům (zobrazí se všem při otevření dashboardu)
+                  </label>
+                  <textarea
+                    value={adminMsg}
+                    onChange={(e) => setAdminMsg(e.target.value)}
+                    placeholder="Napiš zprávu, která hráčům vyskočí po přihlášení..."
+                    className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px] resize-y text-sm mb-2"
+                  />
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                      onClick={sendAdminMessage}
+                      disabled={sendingMsg || !adminMsg.trim()}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-50"
+                    >
+                      {sendingMsg ? 'Odesílám...' : 'Odeslat zprávu'}
+                    </button>
+                    {currentTournament.admin_message && (
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Aktuální: <span className="italic">{currentTournament.admin_message.substring(0, 60)}{currentTournament.admin_message.length > 60 ? '...' : ''}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Pozadí turnaje */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Pozadí pro hráče (50 % průhlednost na dashboardu)
+                  </label>
+                  <div className="flex gap-3 flex-wrap">
+                    {[
+                      { key: 'hockey-light', label: 'Hokej světlý' },
+                      { key: 'hockey-dark', label: 'Hokej tmavý' },
+                      { key: 'football-light', label: 'Fotbal světlý' },
+                      { key: 'football-dark', label: 'Fotbal tmavý' },
+                    ].map((bg) => (
+                      <button
+                        key={bg.key}
+                        onClick={() => setBackground(bg.key)}
+                        className={`relative w-36 h-24 rounded-xl border-2 overflow-hidden transition ${
+                          currentTournament.background_theme === bg.key
+                            ? 'border-blue-600 ring-2 ring-blue-500'
+                            : 'border-gray-200 dark:border-gray-600 hover:border-blue-400'
+                        }`}
+                      >
+                        <div
+                          className="absolute inset-0 bg-cover bg-center"
+                          style={{ backgroundImage: `url(/images/${bg.key}.png)` }}
+                        />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                          <span className="text-xs font-bold text-white drop-shadow-md">{bg.label}</span>
+                        </div>
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setBackground('')}
+                      className={`w-36 h-24 rounded-xl border-2 border-dashed flex items-center justify-center text-xs font-medium transition ${
+                        !currentTournament.background_theme
+                          ? 'border-blue-600 text-blue-600 bg-blue-50 dark:bg-blue-900/20'
+                          : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-400'
+                      }`}
+                    >
+                      Žádné pozadí
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-gray-400 dark:text-gray-500">
+                Vyber turnaj výše pro zobrazení nastavení.
+              </div>
+            )}
           </div>
         )}
       </main>
