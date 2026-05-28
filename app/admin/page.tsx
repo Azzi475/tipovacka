@@ -711,16 +711,31 @@ function CsvImport({ onSuccess, tournamentId }: { onSuccess: () => void, tournam
 }
 
 function MatchCard({ match, onRefresh, setMessage, isDeleting, onConfirmDelete, onDelete, onCancelDelete }: any) {
+  const supabase = createClient()
   const [home, setHome] = useState(match.home_score_regular ?? '')
   const [away, setAway] = useState(match.away_score_regular ?? '')
   const [saving, setSaving] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [editTime, setEditTime] = useState(false)
+  const [editDateVal, setEditDateVal] = useState(() => {
+    const d = new Date(match.kickoff_at)
+    return d.toISOString().split('T')[0]
+  })
+  const [editTimeVal, setEditTimeVal] = useState(() => {
+    const d = new Date(match.kickoff_at)
+    return d.toTimeString().slice(0, 5)
+  })
+  const [savingTime, setSavingTime] = useState(false)
 
   useEffect(() => {
     setHome(match.home_score_regular ?? '')
     setAway(match.away_score_regular ?? '')
     setEditing(false)
-  }, [match.home_score_regular, match.away_score_regular, match.status])
+    setEditTime(false)
+    const d = new Date(match.kickoff_at)
+    setEditDateVal(d.toISOString().split('T')[0])
+    setEditTimeVal(d.toTimeString().slice(0, 5))
+  }, [match.home_score_regular, match.away_score_regular, match.status, match.kickoff_at])
 
   const saveResult = async () => {
     setSaving(true)
@@ -757,6 +772,28 @@ function MatchCard({ match, onRefresh, setMessage, isDeleting, onConfirmDelete, 
     setSaving(false)
   }
 
+  const saveTime = async () => {
+    setSavingTime(true)
+    try {
+      const kickoff = new Date(`${editDateVal}T${editTimeVal}:00`).toISOString()
+      const { error } = await supabase
+        .from('matches')
+        .update({ kickoff_at: kickoff })
+        .eq('id', match.id)
+
+      if (error) {
+        setMessage('Chyba: ' + error.message)
+      } else {
+        setMessage('Čas zápasu upraven!')
+        setEditTime(false)
+        onRefresh()
+      }
+    } catch (err: any) {
+      setMessage('Chyba při úpravě času: ' + (err?.message || 'Neznámá chyba'))
+    }
+    setSavingTime(false)
+  }
+
   const isFinished = match.status === 'finished'
 
   return (
@@ -767,7 +804,46 @@ function MatchCard({ match, onRefresh, setMessage, isDeleting, onConfirmDelete, 
             <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${isFinished ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'}`}>
               {isFinished ? 'Dokončeno' : 'Naplánováno'}
             </span>
-            <span className="text-xs text-gray-400 dark:text-gray-500">{new Date(match.kickoff_at).toLocaleString('cs-CZ')}</span>
+            {!editTime ? (
+              <span className="text-xs text-gray-400 dark:text-gray-500">{new Date(match.kickoff_at).toLocaleString('cs-CZ')}</span>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={editDateVal}
+                  onChange={(e) => setEditDateVal(e.target.value)}
+                  className="text-xs p-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <input
+                  type="time"
+                  value={editTimeVal}
+                  onChange={(e) => setEditTimeVal(e.target.value)}
+                  className="text-xs p-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={saveTime}
+                  disabled={savingTime}
+                  className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1.5 rounded font-semibold transition disabled:opacity-50"
+                >
+                  {savingTime ? '...' : 'Uložit'}
+                </button>
+                <button
+                  onClick={() => setEditTime(false)}
+                  className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-1.5 rounded transition"
+                >
+                  Zrušit
+                </button>
+              </div>
+            )}
+            {!editTime && !isFinished && (
+              <button
+                onClick={() => setEditTime(true)}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+                title="Upravit čas zápasu"
+              >
+                Upravit čas
+              </button>
+            )}
           </div>
           <div className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2 flex-wrap">
             <TeamFlag teamName={match.home_team_name} size={24} />
