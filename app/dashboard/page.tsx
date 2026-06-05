@@ -207,9 +207,9 @@ export default function TipsPage() {
 
       {/* Modal admin zprávy */}
       {showAdminModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-2xl border border-gray-200 dark:border-gray-700">
-            <div className="flex justify-center mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full max-h-[85vh] overflow-y-auto shadow-2xl border border-gray-200 dark:border-gray-700 my-auto">
+            <div className="flex justify-center mb-4 shrink-0">
               <Image 
                 src="/icons/logo-trophy-light.png" 
                 alt="Info" 
@@ -227,7 +227,7 @@ export default function TipsPage() {
                 unoptimized={true} 
               />
             </div>
-            <h2 className="text-xl font-bold text-center text-gray-900 dark:text-white mb-4">
+            <h2 className="text-xl font-bold text-center text-gray-900 dark:text-white mb-4 shrink-0">
               Zpráva od admina
             </h2>
             <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap mb-6 leading-relaxed">
@@ -235,7 +235,7 @@ export default function TipsPage() {
             </p>
             <button
               onClick={dismissAdminMessage}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition shrink-0"
             >
               OK, rozumím
             </button>
