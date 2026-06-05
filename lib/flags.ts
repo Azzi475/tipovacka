@@ -37,7 +37,7 @@ export const teamFlags: Record<string, string> = {
   "Anglie": "gb-eng", "England": "gb-eng", "ENG": "gb-eng",
   "Ghana": "gh", "GHA": "gh",
   "Haiti": "ht", "HTI": "ht",
-  "Írán": "ir", " IR Iran": "ir", "IRN": "ir",
+  "Írán": "ir", "IR Iran": "ir", "IRN": "ir",
   "Irák": "iq", "Iraq": "iq", "IRQ": "iq",
   "Jordánsko": "jo", "Jordan": "jo", "JOR": "jo",
   "Korejská republika": "kr", "Korea Republic": "kr", "KOR": "kr",
