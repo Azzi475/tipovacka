@@ -153,7 +153,7 @@ export const countryNamesCs: Record<string, string> = {
   "GHA": "Ghana",
   "Haiti": "Haiti",
   "HTI": "Haiti",
-  "Iran": "Írán",
+  "IR Iran": "Írán",
   "IRN": "Írán",
   "Iraq": "Irák",
   "IRQ": "Irák",
