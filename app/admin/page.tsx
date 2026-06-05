@@ -184,8 +184,29 @@ export default function AdminPage() {
   }
 
   async function finishTournament(id: string) {
+    // 1. Najdi všechny zápasy turnaje
+    const { data: matchIds } = await supabase
+      .from('matches')
+      .select('id')
+      .eq('tournament_id', id)
+
+    // 2. Smaž všechny tipy pro tyto zápasy
+    if (matchIds && matchIds.length > 0) {
+      const ids = matchIds.map((m: any) => m.id)
+      const { error: predError } = await supabase
+        .from('predictions')
+        .delete()
+        .in('match_id', ids)
+
+      if (predError) {
+        setMessage('Chyba při mazání tipů: ' + predError.message)
+        return
+      }
+    }
+
+    // 3. Ukonči turnaj
     const { error } = await supabase.from('tournaments').update({ is_active: false, status: 'finished' }).eq('id', id)
-    if (!error) { setMessage('Turnaj ukončen'); loadData() }
+    if (!error) { setMessage('Turnaj ukončen – tipy smazány'); loadData() }
   }
 
   async function deleteMatch(id: string) {

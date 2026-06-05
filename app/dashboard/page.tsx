@@ -111,10 +111,12 @@ export default function TipsPage() {
       .eq('tournament_id', tournament.id)
       .order('kickoff_at', { ascending: true })
 
+    const matchIds = matchesData?.map((m: any) => m.id) || []
     const { data: predictionsData } = await supabase
       .from('predictions')
       .select('*')
       .eq('user_id', user.id)
+      .in('match_id', matchIds)
 
     const predMap: Record<string, Prediction> = {}
     predictionsData?.forEach((p) => {
