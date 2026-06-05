@@ -28,7 +28,7 @@ export const teamFlags: Record<string, string> = {
   "Brazílie": "br", "Brazil": "br", "BRA": "br",
   "Kapverdy": "cv", "Cabo Verde": "cv", "CPV": "cv",
   "Kolumbie": "co", "Colombia": "co", "COL": "co",
-  "Demokratická republika Kongo": "cd", "Democratic Republic of the Congo": "cd", "COD": "cd",
+  "Demokratická republika Kongo": "cd", "Democratic Republic of the Congo": "cd",
   "Chorvatsko": "hr", "Croatia": "hr", "CRO": "hr",
   "Curacao": "cw", "Curaçao": "cw", "CUW": "cw",
   "Pobřeží slonoviny": "ci", "Côte d’Ivoire": "ci", "CIV": "ci",
@@ -58,6 +58,7 @@ export const teamFlags: Record<string, string> = {
   "Turecko": "tr", "Türkiye": "tr", "TUR": "tr",
   "Uruguay": "uy", "URU": "uy",
   "Uzbekistán": "uz", "Uzbekistan": "uz", "UZB": "uz",
+  "Kongo DR": "cd", "Congo DR": "cd", "COD": "cd",
 }
 
 export function getFlagPath(teamName: string): string {
