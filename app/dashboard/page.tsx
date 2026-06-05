@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
-import { getFlagPath, getFlagCode } from '@/lib/flags'
+import { getFlagPath, getFlagCode, getCzechName } from '@/lib/flags'
 
 type Match = {
   id: string
@@ -371,7 +371,7 @@ function MatchCard({
           <div className="flex flex-col items-center gap-2 flex-1">
             <TeamFlag teamName={match.home_team_name} size={48} />
             <span className="text-sm font-semibold text-text-primary dark:text-white text-center">
-              {match.home_team_name}
+              {getCzechName(match.home_team_name)}
             </span>
           </div>
 
@@ -387,7 +387,7 @@ function MatchCard({
           <div className="flex flex-col items-center gap-2 flex-1">
             <TeamFlag teamName={match.away_team_name} size={48} />
             <span className="text-sm font-semibold text-text-primary dark:text-white text-center">
-              {match.away_team_name}
+              {getCzechName(match.away_team_name)}
             </span>
           </div>
         </div>
@@ -456,7 +456,7 @@ function MatchCard({
 
       <div className="flex items-center justify-center gap-4 mb-5">
         <div className="flex items-center gap-3 flex-1 justify-end">
-          <span className="text-sm font-semibold text-text-primary dark:text-white text-right">{match.home_team_name}</span>
+          <span className="text-sm font-semibold text-text-primary dark:text-white text-right">{getCzechName(match.home_team_name)}</span>
           <TeamFlag teamName={match.home_team_name} size={40} />
         </div>
 
@@ -464,7 +464,7 @@ function MatchCard({
 
         <div className="flex items-center gap-3 flex-1 justify-start">
           <TeamFlag teamName={match.away_team_name} size={40} />
-          <span className="text-sm font-semibold text-text-primary dark:text-white">{match.away_team_name}</span>
+          <span className="text-sm font-semibold text-text-primary dark:text-white">{getCzechName(match.away_team_name)}</span>
         </div>
       </div>
 
