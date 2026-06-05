@@ -715,6 +715,7 @@ function CsvImport({ onSuccess, tournamentId }: { onSuccess: () => void, tournam
     setImporting(true)
     const formData = new FormData()
     formData.append('file', file)
+    formData.append('tournament_id', tournamentId)
     const res = await fetch('/api/matches/import', { method: 'POST', body: formData })
     const data = await res.json()
     setImporting(false)
