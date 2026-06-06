@@ -693,6 +693,20 @@ export default function AdminPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* ===== HRÁČI TURNAJE ===== */}
+                <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <h4 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    Hráči turnaje
+                  </h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                    Zaklikni hráče, kteří se zúčastní aktuálního turnaje. Nezapsaní hráči neuvidí žebříček ani zápasy.
+                  </p>
+                  <TournamentPlayers tournamentId={currentTournament.id} />
+                </div>
               </div>
             ) : (
               <div className="text-center py-12 text-gray-400 dark:text-gray-500">
@@ -716,10 +730,25 @@ function CsvImport({ onSuccess, tournamentId }: { onSuccess: () => void, tournam
     const formData = new FormData()
     formData.append('file', file)
     formData.append('tournament_id', tournamentId)
-    const res = await fetch('/api/matches/import', { method: 'POST', body: formData })
-    const data = await res.json()
-    setImporting(false)
-    if (data.success) { onSuccess(); setFile(null) }
+    try {
+      const res = await fetch('/api/matches/import', { method: 'POST', body: formData })
+      let data
+      try {
+        data = await res.json()
+      } catch {
+        data = { error: 'Server nevrátil JSON. Status: ' + res.status }
+      }
+      setImporting(false)
+      if (!res.ok || !data.success) {
+        alert('Chyba importu: ' + (data.error || data.message || `HTTP ${res.status}`))
+        return
+      }
+      onSuccess()
+      setFile(null)
+    } catch (err: any) {
+      setImporting(false)
+      alert('Chyba připojení: ' + (err?.message || 'Neznámá chyba'))
+    }
   }
   return (
     <form onSubmit={handleImport} className="flex gap-3 items-end">
@@ -899,6 +928,95 @@ function MatchCard({ match, onRefresh, setMessage, isDeleting, onConfirmDelete, 
             <button onClick={onConfirmDelete} className="text-gray-400 hover:text-red-600 p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition">Del</button>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function TournamentPlayers({ tournamentId }: { tournamentId: string }) {
+  const supabase = createClient()
+  const [players, setPlayers] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadPlayers()
+  }, [tournamentId])
+
+  async function loadPlayers() {
+    setLoading(true)
+    // 1. Načti všechny profily
+    const { data: profs } = await supabase.from('profiles').select('id, nickname, first_name, last_name').order('nickname', { ascending: true })
+
+    // 2. Načti účastníky turnaje
+    const { data: participants } = await supabase
+      .from('tournament_participants')
+      .select('user_id, is_active')
+      .eq('tournament_id', tournamentId)
+
+    const partMap: Record<string, boolean> = {}
+    participants?.forEach((p: any) => { partMap[p.user_id] = p.is_active })
+
+    const merged = (profs || []).map((p: any) => ({
+      ...p,
+      is_active: partMap[p.id] ?? false
+    }))
+
+    setPlayers(merged)
+    setLoading(false)
+  }
+
+  async function togglePlayer(userId: string, currentActive: boolean) {
+    const newActive = !currentActive
+    if (newActive) {
+      // Přidej hráče do turnaje
+      const { error } = await supabase
+        .from('tournament_participants')
+        .upsert({ user_id: userId, tournament_id: tournamentId, is_active: true }, { onConflict: 'user_id,tournament_id' })
+      if (error) console.error('Chyba:', error)
+    } else {
+      // Odeber hráče
+      const { error } = await supabase
+        .from('tournament_participants')
+        .delete()
+        .eq('user_id', userId)
+        .eq('tournament_id', tournamentId)
+      if (error) console.error('Chyba:', error)
+    }
+    await loadPlayers()
+  }
+
+  if (loading) return <div className="text-sm text-gray-400 dark:text-gray-500">Načítání hráčů...</div>
+
+  return (
+    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600 overflow-hidden">
+      <div className="max-h-[400px] overflow-y-auto">
+        {players.length === 0 && (
+          <div className="p-4 text-center text-sm text-gray-400 dark:text-gray-500">Žádní registrovaní hráči</div>
+        )}
+        {players.map((p) => {
+          const name = p.nickname || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Neznámý'
+          return (
+            <div key={p.id} className="flex items-center justify-between p-3 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition border-b border-gray-100 dark:border-gray-700 last:border-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-2 h-2 rounded-full shrink-0 ${p.is_active ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{name}</span>
+              </div>
+              <button
+                onClick={() => togglePlayer(p.id, p.is_active)}
+                className={`relative w-10 h-6 rounded-full transition-colors duration-200 shrink-0 ${
+                  p.is_active ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+                title={p.is_active ? 'Odebrat z turnaje' : 'Přidat do turnaje'}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                    p.is_active ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

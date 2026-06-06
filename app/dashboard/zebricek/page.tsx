@@ -11,6 +11,7 @@ export default function ZebricekPage() {
   const [leaderboard, setLeaderboard] = useState<any[]>([])
   const [tournament, setTournament] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [isParticipant, setIsParticipant] = useState<boolean | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -22,6 +23,18 @@ export default function ZebricekPage() {
           .single()
 
         setTournament(t)
+
+        // Kontrola účasti v turnaji
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user && t) {
+          const { data: participant } = await supabase
+            .from('tournament_participants')
+            .select('is_active')
+            .eq('user_id', user.id)
+            .eq('tournament_id', t.id)
+            .single()
+          setIsParticipant(participant?.is_active === true)
+        }
 
         if (t && !t.leaderboard_closed) {
           const { data: leaderboardData, error: rpcError } = await supabase
@@ -66,6 +79,25 @@ export default function ZebricekPage() {
   }, [supabase])
 
   if (loading) return <div className="p-8 text-center text-gray-500 dark:text-gray-400">Načítání...</div>
+
+  // Nezapsaný hráč
+  if (isParticipant === false) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full text-center border border-gray-200 dark:border-gray-700 shadow-lg">
+          <div className="flex justify-center mb-4">
+            <svg className="w-12 h-12 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Nejste zapsáni</h2>
+          <p className="text-gray-600 dark:text-gray-300">
+            Do tohoto turnaje nejste zapsáni. Kontaktujte admina pro přidání.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   // Uzavřený žebříček pro hráče
   if (tournament?.leaderboard_closed) {
