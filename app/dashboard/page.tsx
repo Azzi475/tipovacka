@@ -75,7 +75,7 @@ export default function TipsPage() {
 
     const { data: tournament } = await supabase
       .from('tournaments')
-      .select('id, admin_message, admin_message_sent_at, background_theme')
+      .select('id, admin_message, admin_message_sent_at, admin_message_target, background_theme')
       .eq('is_active', true)
       .single()
 
@@ -110,7 +110,20 @@ export default function TipsPage() {
         ? new Date(profile.last_message_dismissed_at).getTime()
         : 0
 
-      if (msgTime > dismissedTime) {
+      let shouldShow = msgTime > dismissedTime
+
+      // Pokud je zpráva jen pro aktivní hráče, ověř účast
+      if (shouldShow && tournament.admin_message_target === 'active') {
+        const { data: participant } = await supabase
+          .from('tournament_participants')
+          .select('is_active')
+          .eq('user_id', user.id)
+          .eq('tournament_id', tournament.id)
+          .single()
+        shouldShow = participant?.is_active === true
+      }
+
+      if (shouldShow) {
         setAdminModalText(tournament.admin_message)
         setShowAdminModal(true)
       }

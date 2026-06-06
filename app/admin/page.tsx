@@ -28,6 +28,7 @@ type Tournament = {
   leaderboard_message: string | null
   admin_message?: string | null
   admin_message_sent_at?: string | null
+  admin_message_target?: string | null
   background_theme?: string | null
   leaderboard_show_details?: boolean
 }
@@ -69,6 +70,7 @@ export default function AdminPage() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [adminMsg, setAdminMsg] = useState('')
   const [sendingMsg, setSendingMsg] = useState(false)
+  const [msgTarget, setMsgTarget] = useState<"all" | "active">("all")
 
   useEffect(() => {
     async function check() {
@@ -239,15 +241,17 @@ export default function AdminPage() {
       .from('tournaments')
       .update({
         admin_message: adminMsg.trim(),
-        admin_message_sent_at: new Date().toISOString()
+        admin_message_sent_at: new Date().toISOString(),
+        admin_message_target: msgTarget
       })
       .eq('id', currentTournament.id)
 
     if (error) {
       setMessage('Chyba: ' + error.message)
     } else {
-      setMessage('Zpráva odeslána všem hráčům!')
-      setCurrentTournament({ ...currentTournament, admin_message: adminMsg.trim(), admin_message_sent_at: new Date().toISOString() })
+      const targetText = msgTarget === 'active' ? 'aktivním hráčům' : 'všem hráčům'
+      setMessage('Zpráva odeslána ' + targetText + '!')
+      setCurrentTournament({ ...currentTournament, admin_message: adminMsg.trim(), admin_message_sent_at: new Date().toISOString(), admin_message_target: msgTarget })
       setAdminMsg('')
     }
     setSendingMsg(false)
@@ -627,7 +631,7 @@ export default function AdminPage() {
                 {/* Zpráva hráčům */}
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Zpráva hráčům (zobrazí se všem při otevření dashboardu)
+                    Zpráva hráčům (zobrazí se při otevření dashboardu)
                   </label>
                   <textarea
                     value={adminMsg}
@@ -635,7 +639,7 @@ export default function AdminPage() {
                     placeholder="Napiš zprávu, která hráčům vyskočí po přihlášení..."
                     className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px] resize-y text-sm mb-2"
                   />
-                  <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-3 flex-wrap mb-3">
                     <button
                       onClick={sendAdminMessage}
                       disabled={sendingMsg || !adminMsg.trim()}
@@ -648,6 +652,29 @@ export default function AdminPage() {
                         Aktuální: <span className="italic">{currentTournament.admin_message.substring(0, 60)}{currentTournament.admin_message.length > 60 ? '...' : ''}</span>
                       </span>
                     )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Cílová skupina:</span>
+                    <button
+                      onClick={() => setMsgTarget('all')}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                        msgTarget === 'all'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                      }`}
+                    >
+                      Všichni registrovaní
+                    </button>
+                    <button
+                      onClick={() => setMsgTarget('active')}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                        msgTarget === 'active'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                      }`}
+                    >
+                      Jen aktivní hráči
+                    </button>
                   </div>
                 </div>
 
