@@ -696,12 +696,24 @@ export default function AdminPage() {
 
                 {/* ===== HRÁČI TURNAJE ===== */}
                 <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                  <h4 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                    Hráči turnaje
-                  </h4>
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                      <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      Hráči turnaje
+                    </h4>
+                    <button
+                      onClick={() => loadData()}
+                      className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1 transition"
+                      title="Obnovit seznam hráčů"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Obnovit
+                    </button>
+                  </div>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
                     Zaklikni hráče, kteří se zúčastní aktuálního turnaje. Nezapsaní hráči neuvidí žebříček ani zápasy.
                   </p>
