@@ -84,6 +84,40 @@ export default function TipsPage() {
       return
     }
 
+    // Nastavení pozadí
+    setBgTheme(tournament.background_theme || null)
+
+    // Kontrola admin zprávy
+    if (tournament.admin_message && tournament.admin_message_sent_at) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('last_message_dismissed_at')
+        .eq('id', user.id)
+        .single()
+
+      const msgTime = new Date(tournament.admin_message_sent_at).getTime()
+      const dismissedTime = profile?.last_message_dismissed_at
+        ? new Date(profile.last_message_dismissed_at).getTime()
+        : 0
+
+      let shouldShow = msgTime > dismissedTime
+
+      if (shouldShow && tournament.admin_message_target === 'active') {
+        const { data: participantCheck } = await supabase
+          .from('tournament_participants')
+          .select('is_active')
+          .eq('user_id', user.id)
+          .eq('tournament_id', tournament.id)
+          .single()
+        shouldShow = participantCheck?.is_active === true
+      }
+
+      if (shouldShow) {
+        setAdminModalText(tournament.admin_message)
+        setShowAdminModal(true)
+      }
+    }
+
     // Kontrola účasti v turnaji
     const { data: participant } = await supabase
       .from('tournament_participants')
@@ -93,11 +127,6 @@ export default function TipsPage() {
       .single()
 
     setIsParticipant(participant?.is_active === true)
-
-    // Nastavení pozadí
-    setBgTheme(tournament.background_theme || null)
-
-    // Kontrola admin zprávy
     if (tournament.admin_message && tournament.admin_message_sent_at) {
       const { data: profile } = await supabase
         .from('profiles')
@@ -210,17 +239,33 @@ export default function TipsPage() {
 
   if (isParticipant === false) {
     return (
-      <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full text-center border border-gray-200 dark:border-gray-700 shadow-lg">
-          <div className="flex justify-center mb-4">
-            <svg className="w-12 h-12 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-            </svg>
+      <div className="relative min-h-screen">
+        {/* Modal admin zprávy */}
+        {showAdminModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full max-h-[85vh] overflow-y-auto shadow-2xl border border-gray-200 dark:border-gray-700 my-auto">
+              <div className="flex justify-center mb-4 shrink-0">
+                <Image src="/icons/logo-trophy-light.png" alt="Info" width={48} height={48} className="dark:hidden" unoptimized={true} />
+                <Image src="/icons/logo-trophy-dark.png" alt="Info" width={48} height={48} className="hidden dark:block" unoptimized={true} />
+              </div>
+              <h2 className="text-xl font-bold text-center text-gray-900 dark:text-white mb-4 shrink-0">Zpráva od admina</h2>
+              <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap mb-6 leading-relaxed">{adminModalText}</p>
+              <button onClick={dismissAdminMessage} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition shrink-0">OK, rozumím</button>
+            </div>
           </div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Nejste zapsáni</h2>
-          <p className="text-gray-600 dark:text-gray-300">
-            Do tohoto turnaje nejste zapsáni. Kontaktujte admina pro přidání.
-          </p>
+        )}
+        <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full text-center border border-gray-200 dark:border-gray-700 shadow-lg">
+            <div className="flex justify-center mb-4">
+              <svg className="w-12 h-12 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Nejste zapsáni</h2>
+            <p className="text-gray-600 dark:text-gray-300">
+              Do tohoto turnaje nejste zapsáni. Kontaktujte admina pro přidání.
+            </p>
+          </div>
         </div>
       </div>
     )
