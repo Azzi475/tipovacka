@@ -71,6 +71,9 @@ export default function AdminPage() {
   const [adminMsg, setAdminMsg] = useState('')
   const [sendingMsg, setSendingMsg] = useState(false)
   const [msgTarget, setMsgTarget] = useState<"all" | "active">("all")
+  const [scrapeResults, setScrapeResults] = useState<any[]>([])
+  const [showScrapePreview, setShowScrapePreview] = useState(false)
+  const [scraping, setScraping] = useState(false)
 
   useEffect(() => {
     async function check() {
@@ -232,6 +235,49 @@ export default function AdminPage() {
       console.error('Chyba při mazání:', err)
       setMessage('Chyba při mazání: ' + (err?.message || 'Neznámá chyba'))
     }
+  }
+
+  async function fetchResults() {
+    if (!currentTournament) return
+    setScraping(true)
+    try {
+      const res = await fetch('/api/matches/fetch-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tournamentId: currentTournament.id })
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setMessage('Chyba: ' + (data.error || 'Neznámá chyba'))
+      } else {
+        setScrapeResults(data.results || [])
+        setShowScrapePreview(true)
+        if (data.errors?.length > 0) {
+          setMessage('Varování: ' + data.errors.join(', '))
+        }
+      }
+    } catch (err: any) {
+      setMessage('Chyba připojení: ' + (err?.message || 'Neznámá chyba'))
+    }
+    setScraping(false)
+  }
+
+  async function applyScrapedResults() {
+    let updated = 0
+    for (const r of scrapeResults) {
+      if (r.home_score !== null && r.away_score !== null) {
+        const res = await fetch(`/api/matches/${r.match_id}/evaluate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ home_score: r.home_score, away_score: r.away_score })
+        })
+        if (res.ok) updated++
+      }
+    }
+    setMessage(`Vyhodnoceno ${updated} zápasů!`)
+    setShowScrapePreview(false)
+    setScrapeResults([])
+    loadData()
   }
 
   async function sendAdminMessage() {
@@ -514,6 +560,21 @@ export default function AdminPage() {
               )}
 
               <CsvImport onSuccess={() => { setMessage('Importováno'); loadData(); }} tournamentId={selectedTournament} />
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                <button
+                  onClick={fetchResults}
+                  disabled={scraping}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition disabled:opacity-50 flex items-center gap-2"
+                >
+                  <svg className={`w-4 h-4 ${scraping ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {scraping ? 'Načítám...' : 'Načíst výsledky (API-Football)'}
+                </button>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Načte výsledky ze základní hrací doby (90 min) přes API-Football. Vyžaduje API klíč v proměnné prostředí API_FOOTBALL_KEY.
+                </p>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -755,6 +816,58 @@ export default function AdminPage() {
           </div>
         )}
       </main>
+
+      {/* Modal náhledu výsledků */}
+      {showScrapePreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 dark:border-gray-700">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Výsledky z API-Football (základní hrací doba)</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Zkontroluj výsledky před potvrzením. Prázdná pole znamenají, že zápas nebyl nalezen.
+            </p>
+            <div className="space-y-2 mb-6">
+              {scrapeResults.map((r: any) => (
+                <div key={r.match_id} className={`flex items-center justify-between p-3 rounded-lg border ${
+                  r.home_score !== null 
+                    ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' 
+                    : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600'
+                }`}>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="font-medium text-gray-900 dark:text-white">{r.home_team_name}</span>
+                    <span className="text-gray-400">vs</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{r.away_team_name}</span>
+                    <span className="text-xs text-gray-400">{new Date(r.kickoff_at).toLocaleString('cs-CZ')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {r.home_score !== null ? (
+                      <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                        {r.home_score} : {r.away_score}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-gray-400">Nenalezeno</span>
+                    )}
+                    <span className="text-xs text-gray-400">({r.source})</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={applyScrapedResults}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-semibold transition"
+              >
+                Potvrdit a vyhodnotit
+              </button>
+              <button
+                onClick={() => { setShowScrapePreview(false); setScrapeResults([]); }}
+                className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2.5 rounded-xl font-semibold transition"
+              >
+                Zrušit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
