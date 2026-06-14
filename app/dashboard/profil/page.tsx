@@ -172,6 +172,13 @@ export default function ProfilePage() {
           Změnit heslo
         </button>
       </form>
+
+      {/* Patička */}
+      <footer className="text-center py-6 border-t border-gray-200 dark:border-gray-700 mt-8">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          © Jan Arazim | Verze 7.2
+        </p>
+      </footer>
     </div>
   )
 }
