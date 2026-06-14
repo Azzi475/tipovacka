@@ -2,10 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY || ''
-const API_FOOTBALL_HOST = 'v3.football.api-sports.io'
-
-// Časy natvrdo: 23:15 a 06:30 (Český čas)
-const FETCH_TIMES = ['23:15', '06:30']
 
 export async function GET(request: Request) {
   const supabase = await createClient()
@@ -19,28 +15,35 @@ export async function GET(request: Request) {
     hour12: false
   })
 
-  // Je aktuální čas v seznamu?
-  if (!FETCH_TIMES.includes(czTime)) {
-    return NextResponse.json({ message: 'Není čas načítání', currentTime: czTime })
-  }
-
   if (!API_FOOTBALL_KEY) {
     return NextResponse.json({ error: 'API_FOOTBALL_KEY není nastaven' }, { status: 500 })
   }
 
-  // Najdi aktivní turnaje
+  // Najdi aktivní turnaje s auto-fetch zapnutým
   const { data: tournaments } = await supabase
     .from('tournaments')
     .select('*')
     .eq('is_active', true)
+    .eq('auto_fetch_enabled', true)
 
   if (!tournaments || tournaments.length === 0) {
-    return NextResponse.json({ message: 'Žádný aktivní turnaj' })
+    return NextResponse.json({ message: 'Žádný aktivní turnaj s auto-fetch' })
   }
 
   const results: any[] = []
 
   for (const tournament of tournaments) {
+    // Parsovat časy z DB (např. "23:15, 06:30")
+    const fetchTimes = (tournament.auto_fetch_times || '23:15, 06:30')
+      .split(',')
+      .map((t: string) => t.trim())
+
+    // Je aktuální čas v nastavených časech?
+    if (!fetchTimes.includes(czTime)) {
+      results.push({ tournament: tournament.name, skipped: `Není čas (${czTime})` })
+      continue
+    }
+
     // Najdi nedokončené zápasy
     const { data: matches } = await supabase
       .from('matches')
@@ -54,6 +57,11 @@ export async function GET(request: Request) {
       continue
     }
 
+    const sport = tournament.api_sport_type || 'football'
+    const isHockey = sport === 'ice_hockey'
+    const apiHost = isHockey ? 'v1.hockey.api-sports.io' : 'v3.football.api-sports.io'
+    const endpoint = isHockey ? 'games' : 'fixtures'
+
     let updated = 0
     let notFound = 0
 
@@ -62,12 +70,12 @@ export async function GET(request: Request) {
         const kickoff = new Date(match.kickoff_at)
         const dateStr = kickoff.toISOString().split('T')[0]
 
-        const searchUrl = `https://${API_FOOTBALL_HOST}/fixtures?date=${dateStr}`
+        const searchUrl = `https://${apiHost}/${endpoint}?date=${dateStr}`
 
         const res = await fetch(searchUrl, {
           headers: {
             'x-rapidapi-key': API_FOOTBALL_KEY,
-            'x-rapidapi-host': API_FOOTBALL_HOST,
+            'x-rapidapi-host': apiHost,
           },
         })
 
@@ -77,10 +85,10 @@ export async function GET(request: Request) {
         }
 
         const data = await res.json()
-        const fixtures = data.response || []
+        const items = data.response || []
 
         // Najdi zápas podle jmen týmů
-        const found = fixtures.find((f: any) => {
+        const found = items.find((f: any) => {
           const home = f.teams.home.name.toLowerCase()
           const away = f.teams.away.name.toLowerCase()
           const matchHome = match.home_team_name.toLowerCase()
@@ -92,14 +100,37 @@ export async function GET(request: Request) {
           )
         })
 
-        if (found && found.fixture.status.short === 'FT') {
-          const fulltime = found.score.fulltime
-          const homeScore = parseInt(fulltime.home)
-          const awayScore = parseInt(fulltime.away)
+        if (!found) {
+          notFound++
+          continue
+        }
 
-          // === ROVNOU VYHODNOŤ ZÁPAS (bez čekání na admina) ===
+        // Zjisti, jestli je zápas dokončený
+        let isFinished = false
+        let homeScore: number | null = null
+        let awayScore: number | null = null
+
+        if (isHockey) {
+          // Hokej: FT, OT, SO = dokončeno
+          const status = found.status?.short
+          isFinished = status === 'FT' || status === 'OT' || status === 'SO'
+          if (isFinished && found.scores) {
+            homeScore = parseInt(found.scores.home)
+            awayScore = parseInt(found.scores.away)
+          }
+        } else {
+          // Fotbal: FT = základní hrací doba (90 min)
+          isFinished = found.fixture.status.short === 'FT'
+          if (isFinished && found.score?.fulltime) {
+            homeScore = parseInt(found.score.fulltime.home)
+            awayScore = parseInt(found.score.fulltime.away)
+          }
+        }
+
+        if (isFinished && homeScore !== null && awayScore !== null) {
+          // === ROVNOU VYHODNOŤ ZÁPAS ===
           // 1. Ulož skóre
-          const { error: updateError } = await supabase
+          await supabase
             .from('matches')
             .update({
               home_score_regular: homeScore,
@@ -108,11 +139,6 @@ export async function GET(request: Request) {
             })
             .eq('id', match.id)
 
-          if (updateError) {
-            console.error('Chyba uložení skóre:', updateError)
-            continue
-          }
-
           // 2. Přepočti body pro tipy
           const { data: predictions } = await supabase
             .from('predictions')
@@ -120,12 +146,10 @@ export async function GET(request: Request) {
             .eq('match_id', match.id)
 
           if (predictions && predictions.length > 0) {
-            // Spočti přesné tipy
             const exactHits = predictions.filter(
               (p: any) => p.predicted_home_score === homeScore && p.predicted_away_score === awayScore
             ).length
 
-            // Urči vítěze
             let actualWinner = 'draw'
             if (homeScore > awayScore) actualWinner = 'home'
             else if (awayScore > homeScore) actualWinner = 'away'
@@ -163,10 +187,6 @@ export async function GET(request: Request) {
           }
 
           updated++
-        } else if (found) {
-          notFound++
-        } else {
-          notFound++
         }
       } catch (err: any) {
         console.error(`Chyba u zápasu ${match.id}:`, err.message)
@@ -175,16 +195,18 @@ export async function GET(request: Request) {
 
     results.push({
       tournament: tournament.name,
+      sport,
       updated,
       notFound,
-      totalMatches: matches.length
+      totalMatches: matches.length,
+      currentTime: czTime
     })
   }
 
-  return NextResponse.json({ success: true, currentTime: czTime, results })
+  return NextResponse.json({ success: true, results })
 }
 
-// POST pro manuální spuštění
+// POST pro manuální spuštění adminem
 export async function POST(request: Request) {
   return GET(request)
 }
