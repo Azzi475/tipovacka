@@ -24,6 +24,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: 'Není čas načítání', currentTime: czTime })
   }
 
+  if (!API_FOOTBALL_KEY) {
+    return NextResponse.json({ error: 'API_FOOTBALL_KEY není nastaven' }, { status: 500 })
+  }
+
   // Najdi aktivní turnaje
   const { data: tournaments } = await supabase
     .from('tournaments')
@@ -67,7 +71,10 @@ export async function GET(request: Request) {
           },
         })
 
-        if (!res.ok) continue
+        if (!res.ok) {
+          console.error(`API HTTP ${res.status} pro ${match.home_team_name} vs ${match.away_team_name}`)
+          continue
+        }
 
         const data = await res.json()
         const fixtures = data.response || []
@@ -90,21 +97,79 @@ export async function GET(request: Request) {
           const homeScore = parseInt(fulltime.home)
           const awayScore = parseInt(fulltime.away)
 
-          // Vyhodnoť zápas
-          const evalRes = await fetch(`${process.env.VERCEL_URL || ''}/api/matches/${match.id}/evaluate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ home_score: homeScore, away_score: awayScore })
-          })
+          // === ROVNOU VYHODNOŤ ZÁPAS (bez čekání na admina) ===
+          // 1. Ulož skóre
+          const { error: updateError } = await supabase
+            .from('matches')
+            .update({
+              home_score_regular: homeScore,
+              away_score_regular: awayScore,
+              status: 'finished'
+            })
+            .eq('id', match.id)
 
-          if (evalRes.ok) {
-            updated++
+          if (updateError) {
+            console.error('Chyba uložení skóre:', updateError)
+            continue
           }
+
+          // 2. Přepočti body pro tipy
+          const { data: predictions } = await supabase
+            .from('predictions')
+            .select('*')
+            .eq('match_id', match.id)
+
+          if (predictions && predictions.length > 0) {
+            // Spočti přesné tipy
+            const exactHits = predictions.filter(
+              (p: any) => p.predicted_home_score === homeScore && p.predicted_away_score === awayScore
+            ).length
+
+            // Urči vítěze
+            let actualWinner = 'draw'
+            if (homeScore > awayScore) actualWinner = 'home'
+            else if (awayScore > homeScore) actualWinner = 'away'
+
+            for (const pred of predictions) {
+              let predictedWinner = 'draw'
+              if (pred.predicted_home_score > pred.predicted_away_score) predictedWinner = 'home'
+              else if (pred.predicted_away_score > pred.predicted_home_score) predictedWinner = 'away'
+
+              let points = 0
+              let exact = false
+              let winner = false
+              let unique = false
+
+              if (pred.predicted_home_score === homeScore && pred.predicted_away_score === awayScore) {
+                exact = true
+                winner = true
+                points = exactHits === 1 ? 3 : 2
+                unique = exactHits === 1
+              } else if (predictedWinner === actualWinner) {
+                points = 1
+                winner = true
+              }
+
+              await supabase
+                .from('predictions')
+                .update({
+                  points: points,
+                  exact_hit: exact,
+                  winner_or_draw_hit: winner,
+                  unique_exact: unique
+                })
+                .eq('id', pred.id)
+            }
+          }
+
+          updated++
         } else if (found) {
           notFound++
+        } else {
+          notFound++
         }
-      } catch (err) {
-        console.error(`Chyba u zápasu ${match.id}:`, err)
+      } catch (err: any) {
+        console.error(`Chyba u zápasu ${match.id}:`, err.message)
       }
     }
 
@@ -119,7 +184,7 @@ export async function GET(request: Request) {
   return NextResponse.json({ success: true, currentTime: czTime, results })
 }
 
-// POST pro manuální spuštění adminem
+// POST pro manuální spuštění
 export async function POST(request: Request) {
   return GET(request)
 }
