@@ -74,8 +74,7 @@ export default function AdminPage() {
   const [adminMsg, setAdminMsg] = useState('')
   const [sendingMsg, setSendingMsg] = useState(false)
   const [msgTarget, setMsgTarget] = useState<"all" | "active">("all")
-  const [scrapeResults, setScrapeResults] = useState<any[]>([])
-  const [showScrapePreview, setShowScrapePreview] = useState(false)
+  // Modal stavy odstraněny - vyhodnocení je nyní automatické
   const [scraping, setScraping] = useState(false)
   const [autoFetchEnabled, setAutoFetchEnabled] = useState(false)
   const [autoFetchTimes, setAutoFetchTimes] = useState("08:00, 14:00, 20:00")
@@ -300,44 +299,22 @@ export default function AdminPage() {
     if (!currentTournament) return
     setScraping(true)
     try {
-      const res = await fetch('/api/matches/fetch-results', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tournamentId: currentTournament.id })
-      })
+      const res = await fetch('/api/cron/fetch-results', { method: 'POST' })
       const data = await res.json()
-      if (!res.ok) {
-        setMessage('Chyba: ' + (data.error || 'Neznámá chyba'))
+      if (res.ok) {
+        const summary = data.results?.map((r: any) => `${r.tournament}: ${r.updated} vyhodnoceno, ${r.notFound} nenalezeno`).join(' | ')
+        setMessage('Výsledky načteny: ' + (summary || 'Žádné změny'))
+        loadData()
       } else {
-        setScrapeResults(data.results || [])
-        setShowScrapePreview(true)
-        if (data.errors?.length > 0) {
-          setMessage('Varování: ' + data.errors.join(', '))
-        }
+        setMessage('Chyba: ' + (data.error || 'Neznámá chyba'))
       }
     } catch (err: any) {
-      setMessage('Chyba připojení: ' + (err?.message || 'Neznámá chyba'))
+      setMessage('Chyba: ' + (err?.message || 'Neznámá chyba'))
     }
     setScraping(false)
   }
 
-  async function applyScrapedResults() {
-    let updated = 0
-    for (const r of scrapeResults) {
-      if (r.home_score !== null && r.away_score !== null) {
-        const res = await fetch(`/api/matches/${r.match_id}/evaluate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ home_score: r.home_score, away_score: r.away_score })
-        })
-        if (res.ok) updated++
-      }
-    }
-    setMessage(`Vyhodnoceno ${updated} zápasů!`)
-    setShowScrapePreview(false)
-    setScrapeResults([])
-    loadData()
-  }
+
 
   async function sendAdminMessage() {
     if (!currentTournament || !adminMsg.trim()) return
@@ -976,57 +953,7 @@ export default function AdminPage() {
         )}
       </main>
 
-      {/* Modal náhledu výsledků */}
-      {showScrapePreview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 dark:border-gray-700">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Výsledky z API-Football (základní hrací doba)</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-              Zkontroluj výsledky před potvrzením. Prázdná pole znamenají, že zápas nebyl nalezen.
-            </p>
-            <div className="space-y-2 mb-6">
-              {scrapeResults.map((r: any) => (
-                <div key={r.match_id} className={`flex items-center justify-between p-3 rounded-lg border ${
-                  r.home_score !== null 
-                    ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' 
-                    : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600'
-                }`}>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="font-medium text-gray-900 dark:text-white">{r.home_team_name}</span>
-                    <span className="text-gray-400">vs</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{r.away_team_name}</span>
-                    <span className="text-xs text-gray-400">{new Date(r.kickoff_at).toLocaleString('cs-CZ')}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {r.home_score !== null ? (
-                      <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                        {r.home_score} : {r.away_score}
-                      </span>
-                    ) : (
-                      <span className="text-sm text-gray-400">Nenalezeno</span>
-                    )}
-                    <span className="text-xs text-gray-400">({r.source})</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={applyScrapedResults}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2.5 rounded-xl font-semibold transition"
-              >
-                Potvrdit a vyhodnotit
-              </button>
-              <button
-                onClick={() => { setShowScrapePreview(false); setScrapeResults([]); }}
-                className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2.5 rounded-xl font-semibold transition"
-              >
-                Zrušit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   )
 }

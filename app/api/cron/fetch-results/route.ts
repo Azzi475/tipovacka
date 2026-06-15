@@ -4,6 +4,14 @@ import { NextResponse } from 'next/server'
 const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY || ''
 
 export async function GET(request: Request) {
+  return handleFetch(request, true) // true = kontrolovat čas (cron)
+}
+
+export async function POST(request: Request) {
+  return handleFetch(request, false) // false = vždy spustit (admin tlačítko)
+}
+
+async function handleFetch(request: Request, checkTime: boolean) {
   const supabase = await createClient()
 
   // Aktuální čas v ČR
@@ -38,8 +46,8 @@ export async function GET(request: Request) {
       .split(',')
       .map((t: string) => t.trim())
 
-    // Je aktuální čas v nastavených časech?
-    if (!fetchTimes.includes(czTime)) {
+    // Kontrola času jen pro cron (GET), ne pro admin tlačítko (POST)
+    if (checkTime && !fetchTimes.includes(czTime)) {
       results.push({ tournament: tournament.name, skipped: `Není čas (${czTime})` })
       continue
     }
@@ -206,7 +214,3 @@ export async function GET(request: Request) {
   return NextResponse.json({ success: true, results })
 }
 
-// POST pro manuální spuštění adminem
-export async function POST(request: Request) {
-  return GET(request)
-}
