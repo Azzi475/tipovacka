@@ -88,7 +88,7 @@ export default function ProfilePage() {
         Profil
       </h2>
 
-      <form onSubmit={handleUpdateProfile} className="card p-6 space-y-4">
+      <form onSubmit={handleUpdateProfile} className="card p-6 space-y-4 opacity-70">
         <h3 className="text-lg font-semibold text-text-primary dark:text-white flex items-center gap-2">
           <Image src="/icons/nav-profile-light.svg" alt="" width={20} height={20} className="dark:hidden" unoptimized={true} />
           <Image src="/icons/nav-profile-dark.svg" alt="" width={20} height={20} className="hidden dark:block" unoptimized={true} />
@@ -144,7 +144,7 @@ export default function ProfilePage() {
         </button>
       </form>
 
-      <form onSubmit={handleChangePassword} className="card p-6 space-y-4">
+      <form onSubmit={handleChangePassword} className="card p-6 space-y-4 opacity-70">
         <h3 className="text-lg font-semibold text-text-primary dark:text-white flex items-center gap-2">
           <Image src="/icons/lock-light.svg" alt="" width={20} height={20} className="dark:hidden" unoptimized={true} />
           <Image src="/icons/lock-dark.svg" alt="" width={20} height={20} className="hidden dark:block" unoptimized={true} />
@@ -176,7 +176,7 @@ export default function ProfilePage() {
       {/* Patička */}
       <footer className="text-center py-6 border-t border-gray-200 dark:border-gray-700 mt-8">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          2026 © Jan Arazim | Ver. 1.7.4
+          2026 © Jan Arazim | Ver. 1.8.0
         </p>
       </footer>
     </div>

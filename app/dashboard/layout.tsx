@@ -10,6 +10,7 @@ import { useTheme } from '@/components/theme-provider'
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
   const [stats, setStats] = useState({ points: 0, exact: 0 })
+  const [bgTheme, setBgTheme] = useState<string | null>(null)
   const pathname = usePathname()
   const { theme, toggleTheme } = useTheme()
 
@@ -28,6 +29,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const exact = preds?.filter(p => p.exact_hit === true).length || 0
 
         setStats({ points, exact })
+
+        // Načtení pozadí aktivního turnaje
+        const { data: tournament } = await supabase
+          .from('tournaments')
+          .select('background_theme')
+          .eq('is_active', true)
+          .single()
+
+        setBgTheme(tournament?.background_theme || null)
       } catch (err) {
         console.error('Chyba při načítání statistik:', err)
       }
@@ -45,7 +55,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const logoSrc = theme === 'dark' ? '/icons/logo-trophy-dark.png' : '/icons/logo-trophy-light.png'
 
   return (
-    <div className="min-h-screen bg-bg-light dark:bg-bg-dark transition-colors duration-300 pb-24">
+    <div className="min-h-screen bg-bg-light dark:bg-bg-dark transition-colors duration-300 pb-24 relative">
+      {/* Pozadí turnaje */}
+      {bgTheme && (
+        <div
+          className="fixed inset-0 z-0 pointer-events-none"
+          style={{
+            backgroundImage: `url(/images/${bgTheme}.png)`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            opacity: 0.5,
+          }}
+        />
+      )}
       {/* Horní lišta */}
       <nav className="bg-white dark:bg-card-dark border-b border-gray-200 dark:border-border-dark sticky top-0 z-50 transition-colors duration-300">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">

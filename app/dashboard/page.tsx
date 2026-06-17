@@ -56,7 +56,6 @@ export default function TipsPage() {
   const [predictions, setPredictions] = useState<Record<string, Prediction>>({})
   const [loading, setLoading] = useState(true)
   const [showFinished, setShowFinished] = useState(false)
-  const [bgTheme, setBgTheme] = useState<string | null>(null)
   const [showAdminModal, setShowAdminModal] = useState(false)
   const [adminModalText, setAdminModalText] = useState('')
   const [isParticipant, setIsParticipant] = useState<boolean | null>(null)
@@ -83,9 +82,6 @@ export default function TipsPage() {
       setLoading(false)
       return
     }
-
-    // Nastavení pozadí
-    setBgTheme(tournament.background_theme || null)
 
     // Kontrola admin zprávy
     if (tournament.admin_message && tournament.admin_message_sent_at) {
@@ -281,19 +277,6 @@ export default function TipsPage() {
 
   return (
     <div className="relative min-h-screen">
-      {/* Pozadí turnaje */}
-      {bgTheme && (
-        <div
-          className="fixed inset-0 z-0 pointer-events-none"
-          style={{
-            backgroundImage: `url(/images/${bgTheme}.png)`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            opacity: 0.5,
-          }}
-        />
-      )}
-
       {/* Modal admin zprávy */}
       {showAdminModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
@@ -432,7 +415,7 @@ function MatchCard({
   // ========== LAYOUT PRO ODEHRANÉ ZÁPASY ==========
   if (isFinished) {
     return (
-      <div className="bg-white dark:bg-card-dark rounded-2xl border border-gray-200 dark:border-border-dark p-5 shadow-sm relative transition-colors opacity-80">
+      <div className="bg-white dark:bg-card-dark rounded-2xl border border-gray-200 dark:border-border-dark p-5 shadow-sm relative transition-colors opacity-30">
         {/* Horní řádek - status a čas */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -506,7 +489,7 @@ function MatchCard({
 
   // ========== LAYOUT PRO BĚŽNÉ ZÁPASY (původní) ==========
   return (
-    <div className="bg-white dark:bg-card-dark rounded-2xl border border-gray-200 dark:border-border-dark p-5 shadow-sm relative transition-colors">
+    <div className="bg-white dark:bg-card-dark rounded-2xl border border-gray-200 dark:border-border-dark p-5 shadow-sm relative transition-colors opacity-70">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Image src={getStatusIcon()} alt={getStatusText()} width={16} height={16} unoptimized={true} />
