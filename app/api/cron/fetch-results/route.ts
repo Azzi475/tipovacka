@@ -1,216 +1,297 @@
 import { createClient } from '@/lib/supabase/server'
+import { evaluateMatch } from '@/lib/matches/evaluate'
 import { NextResponse } from 'next/server'
 
 const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY || ''
+const CRON_SECRET = process.env.CRON_SECRET || ''
 
-export async function GET(request: Request) {
-  return handleFetch(request, true) // true = kontrolovat čas (cron)
+interface ApiFixture {
+  teams: {
+    home: { name: string }
+    away: { name: string }
+  }
+  fixture?: {
+    status: { short: string }
+  }
+  status?: {
+    short: string
+  }
+  score?: {
+    fulltime?: {
+      home: string | number
+      away: string | number
+    }
+  }
+  scores?: {
+    home: string | number
+    away: string | number
+  }
 }
 
-export async function POST(request: Request) {
-  return handleFetch(request, false) // false = vždy spustit (admin tlačítko)
+interface FetchResult {
+  tournament: string
+  sport: string
+  updated?: number
+  notFound?: number
+  apiCalls?: number
+  skipped?: string
+  error?: string | null
 }
 
-async function handleFetch(request: Request, checkTime: boolean) {
+export async function GET(_request: Request) {
+  // Cron-job.org musí poslat CRON_SECRET v Authorization headeru
+  const authHeader = _request.headers.get('authorization')
+  const token = authHeader?.replace('Bearer ', '')
+
+  if (!CRON_SECRET) {
+    return NextResponse.json({ error: 'CRON_SECRET není nastaven' }, { status: 500 })
+  }
+
+  if (token !== CRON_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  return handleFetch('cron')
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function POST(_request: Request) {
   const supabase = await createClient()
 
-  // Aktuální čas v ČR
-  const now = new Date()
-  const czTime = now.toLocaleTimeString('cs-CZ', {
-    timeZone: 'Europe/Prague',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false
-  })
+  // Manuální spuštění vyžaduje přihlášeného admina
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  return handleFetch('manual')
+}
+
+async function handleFetch(triggeredBy: 'cron' | 'manual') {
+  const supabase = await createClient()
 
   if (!API_FOOTBALL_KEY) {
     return NextResponse.json({ error: 'API_FOOTBALL_KEY není nastaven' }, { status: 500 })
   }
 
   // Najdi aktivní turnaje s auto-fetch zapnutým
-  const { data: tournaments } = await supabase
+  const { data: tournaments, error: tournamentsError } = await supabase
     .from('tournaments')
     .select('*')
     .eq('is_active', true)
     .eq('auto_fetch_enabled', true)
 
+  if (tournamentsError) {
+    return NextResponse.json({ error: tournamentsError.message }, { status: 500 })
+  }
+
   if (!tournaments || tournaments.length === 0) {
     return NextResponse.json({ message: 'Žádný aktivní turnaj s auto-fetch' })
   }
 
-  const results: any[] = []
+  const results: FetchResult[] = []
 
   for (const tournament of tournaments) {
-    // Parsovat časy z DB (např. "23:15, 06:30")
-    const fetchTimes = (tournament.auto_fetch_times || '23:15, 06:30')
-      .split(',')
-      .map((t: string) => t.trim())
-
-    // Kontrola času jen pro cron (GET), ne pro admin tlačítko (POST)
-    if (checkTime && !fetchTimes.includes(czTime)) {
-      results.push({ tournament: tournament.name, skipped: `Není čas (${czTime})` })
-      continue
-    }
-
-    // Najdi nedokončené zápasy
-    const { data: matches } = await supabase
-      .from('matches')
-      .select('*')
-      .eq('tournament_id', tournament.id)
-      .neq('status', 'finished')
-      .order('kickoff_at', { ascending: true })
-
-    if (!matches || matches.length === 0) {
-      results.push({ tournament: tournament.name, skipped: 'Žádné nedokončené zápasy' })
-      continue
-    }
-
-    const sport = tournament.api_sport_type || 'football'
-    const isHockey = sport === 'ice_hockey'
-    const apiHost = isHockey ? 'v1.hockey.api-sports.io' : 'v3.football.api-sports.io'
-    const endpoint = isHockey ? 'games' : 'fixtures'
+    const logId = await insertFetchLog(supabase, tournament.id, triggeredBy)
 
     let updated = 0
     let notFound = 0
+    let apiCalls = 0
+    let errorMessage: string | null = null
 
-    for (const match of matches) {
-      try {
-        const kickoff = new Date(match.kickoff_at)
-        const dateStr = kickoff.toISOString().split('T')[0]
+    try {
+      const sport = tournament.api_sport_type || 'football'
+      const isHockey = sport === 'ice_hockey'
+      const apiHost = isHockey ? 'v1.hockey.api-sports.io' : 'v3.football.api-sports.io'
+      const endpoint = isHockey ? 'games' : 'fixtures'
 
-        const searchUrl = `https://${apiHost}/${endpoint}?date=${dateStr}`
+      // Načti nedokončené zápasy turnaje
+      const { data: matches } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('tournament_id', tournament.id)
+        .neq('status', 'finished')
+        .order('kickoff_at', { ascending: true })
 
+      if (!matches || matches.length === 0) {
+        await finishFetchLog(supabase, logId, { apiCalls, matchesUpdated: 0, matchesNotFound: 0 })
+        results.push({ tournament: tournament.name, sport, skipped: 'Žádné nedokončené zápasy' })
+        continue
+      }
+
+      let apiItems: ApiFixture[] = []
+
+      // Strategie: pokud máme league + season, stáhneme celý turnaj najednou
+      if (tournament.api_league_id && tournament.api_season) {
+        const searchUrl = `https://${apiHost}/${endpoint}?league=${tournament.api_league_id}&season=${tournament.api_season}`
         const res = await fetch(searchUrl, {
           headers: {
             'x-rapidapi-key': API_FOOTBALL_KEY,
             'x-rapidapi-host': apiHost,
           },
         })
+        apiCalls++
 
         if (!res.ok) {
-          console.error(`API HTTP ${res.status} pro ${match.home_team_name} vs ${match.away_team_name}`)
-          continue
+          throw new Error(`API HTTP ${res.status}`)
         }
 
         const data = await res.json()
-        const items = data.response || []
-
-        // Najdi zápas podle jmen týmů
-        const found = items.find((f: any) => {
-          const home = f.teams.home.name.toLowerCase()
-          const away = f.teams.away.name.toLowerCase()
-          const matchHome = match.home_team_name.toLowerCase()
-          const matchAway = match.away_team_name.toLowerCase()
-
-          return (
-            (home.includes(matchHome) || matchHome.includes(home) || home.includes(matchHome.slice(0, 4))) &&
-            (away.includes(matchAway) || matchAway.includes(away) || away.includes(matchAway.slice(0, 4)))
-          )
-        })
-
-        if (!found) {
-          notFound++
-          continue
+        apiItems = data.response || []
+      } else {
+        // Fallback: seskupit zápasy podle data a stáhnout po dnech
+        const dates = new Set<string>()
+        for (const match of matches) {
+          const kickoff = new Date(match.kickoff_at)
+          const dateStr = kickoff.toISOString().split('T')[0]
+          dates.add(dateStr)
         }
 
-        // Zjisti, jestli je zápas dokončený
-        let isFinished = false
-        let homeScore: number | null = null
-        let awayScore: number | null = null
+        for (const dateStr of dates) {
+          const searchUrl = `https://${apiHost}/${endpoint}?date=${dateStr}`
+          const res = await fetch(searchUrl, {
+            headers: {
+              'x-rapidapi-key': API_FOOTBALL_KEY,
+              'x-rapidapi-host': apiHost,
+            },
+          })
+          apiCalls++
 
-        if (isHockey) {
-          // Hokej: FT, OT, SO = dokončeno
-          const status = found.status?.short
-          isFinished = status === 'FT' || status === 'OT' || status === 'SO'
-          if (isFinished && found.scores) {
-            homeScore = parseInt(found.scores.home)
-            awayScore = parseInt(found.scores.away)
+          if (!res.ok) {
+            throw new Error(`API HTTP ${res.status} pro datum ${dateStr}`)
           }
-        } else {
-          // Fotbal: FT = základní hrací doba (90 min)
-          isFinished = found.fixture.status.short === 'FT'
-          if (isFinished && found.score?.fulltime) {
-            homeScore = parseInt(found.score.fulltime.home)
-            awayScore = parseInt(found.score.fulltime.away)
-          }
+
+          const data = await res.json()
+          apiItems.push(...(data.response || []))
         }
+      }
 
-        if (isFinished && homeScore !== null && awayScore !== null) {
-          // === ROVNOU VYHODNOŤ ZÁPAS ===
-          // 1. Ulož skóre
-          await supabase
-            .from('matches')
-            .update({
-              home_score_regular: homeScore,
-              away_score_regular: awayScore,
-              status: 'finished'
-            })
-            .eq('id', match.id)
+      // Projdi naše zápasy a najdi odpovídající záznam z API
+      for (const match of matches) {
+        try {
+          const found = apiItems.find((f: ApiFixture) => {
+            const home = f.teams.home.name.toLowerCase()
+            const away = f.teams.away.name.toLowerCase()
+            const matchHome = match.home_team_name.toLowerCase()
+            const matchAway = match.away_team_name.toLowerCase()
 
-          // 2. Přepočti body pro tipy
-          const { data: predictions } = await supabase
-            .from('predictions')
-            .select('*')
-            .eq('match_id', match.id)
+            return (
+              (home.includes(matchHome) || matchHome.includes(home) || home.includes(matchHome.slice(0, 4))) &&
+              (away.includes(matchAway) || matchAway.includes(away) || away.includes(matchAway.slice(0, 4)))
+            )
+          })
 
-          if (predictions && predictions.length > 0) {
-            const exactHits = predictions.filter(
-              (p: any) => p.predicted_home_score === homeScore && p.predicted_away_score === awayScore
-            ).length
+          if (!found) {
+            notFound++
+            continue
+          }
 
-            let actualWinner = 'draw'
-            if (homeScore > awayScore) actualWinner = 'home'
-            else if (awayScore > homeScore) actualWinner = 'away'
+          // Zjisti, jestli je zápas dokončený a načti skóre
+          let isFinished = false
+          let homeScore: number | null = null
+          let awayScore: number | null = null
 
-            for (const pred of predictions) {
-              let predictedWinner = 'draw'
-              if (pred.predicted_home_score > pred.predicted_away_score) predictedWinner = 'home'
-              else if (pred.predicted_away_score > pred.predicted_home_score) predictedWinner = 'away'
-
-              let points = 0
-              let exact = false
-              let winner = false
-              let unique = false
-
-              if (pred.predicted_home_score === homeScore && pred.predicted_away_score === awayScore) {
-                exact = true
-                winner = true
-                points = exactHits === 1 ? 3 : 2
-                unique = exactHits === 1
-              } else if (predictedWinner === actualWinner) {
-                points = 1
-                winner = true
-              }
-
-              await supabase
-                .from('predictions')
-                .update({
-                  points: points,
-                  exact_hit: exact,
-                  winner_or_draw_hit: winner,
-                  unique_exact: unique
-                })
-                .eq('id', pred.id)
+          if (isHockey) {
+            const status = found.status?.short
+            isFinished = status === 'FT' || status === 'OT' || status === 'SO'
+            if (isFinished && found.scores) {
+              homeScore = parseInt(String(found.scores.home))
+              awayScore = parseInt(String(found.scores.away))
+            }
+          } else {
+            isFinished = found.fixture?.status.short === 'FT'
+            if (isFinished && found.score?.fulltime) {
+              homeScore = parseInt(String(found.score.fulltime.home))
+              awayScore = parseInt(String(found.score.fulltime.away))
             }
           }
 
-          updated++
+          if (isFinished && homeScore !== null && awayScore !== null) {
+            await evaluateMatch(supabase, match.id, homeScore, awayScore)
+            updated++
+          }
+        } catch (err: unknown) {
+          console.error(`Chyba u zápasu ${match.id}:`, err instanceof Error ? err.message : 'Neznámá chyba')
         }
-      } catch (err: any) {
-        console.error(`Chyba u zápasu ${match.id}:`, err.message)
       }
+    } catch (err: unknown) {
+      errorMessage = err instanceof Error ? err.message : 'Neznámá chyba'
+      console.error(`Chyba turnaje ${tournament.name}:`, errorMessage)
     }
+
+    await finishFetchLog(supabase, logId, {
+      apiCalls,
+      matchesUpdated: updated,
+      matchesNotFound: notFound,
+      error: errorMessage
+    })
 
     results.push({
       tournament: tournament.name,
-      sport,
+      sport: tournament.api_sport_type || 'football',
       updated,
       notFound,
-      totalMatches: matches.length,
-      currentTime: czTime
+      apiCalls,
+      error: errorMessage
     })
   }
 
   return NextResponse.json({ success: true, results })
 }
 
+async function insertFetchLog(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tournamentId: string,
+  triggeredBy: 'cron' | 'manual'
+) {
+  const { data, error } = await supabase
+    .from('fetch_logs')
+    .insert({
+      tournament_id: tournamentId,
+      triggered_by: triggeredBy,
+      started_at: new Date().toISOString()
+    })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('Chyba při zakládání fetch logu:', error)
+    return null
+  }
+
+  return data.id
+}
+
+async function finishFetchLog(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  logId: string | null,
+  payload: {
+    apiCalls: number
+    matchesUpdated: number
+    matchesNotFound: number
+    error?: string | null
+  }
+) {
+  if (!logId) return
+
+  await supabase
+    .from('fetch_logs')
+    .update({
+      finished_at: new Date().toISOString(),
+      api_calls: payload.apiCalls,
+      matches_updated: payload.matchesUpdated,
+      matches_not_found: payload.matchesNotFound,
+      error: payload.error || null
+    })
+    .eq('id', logId)
+}

@@ -34,6 +34,8 @@ type Tournament = {
   auto_fetch_enabled?: boolean
   auto_fetch_times?: string | null
   api_sport_type?: string | null
+  api_league_id?: number | null
+  api_season?: number | null
 }
 
 function TeamFlag({ teamName, size = 24 }: { teamName: string; size?: number }) {
@@ -79,6 +81,10 @@ export default function AdminPage() {
   const [autoFetchEnabled, setAutoFetchEnabled] = useState(false)
   const [autoFetchTimes, setAutoFetchTimes] = useState("08:00, 14:00, 20:00")
   const [apiSportType, setApiSportType] = useState<"football" | "ice_hockey">("football")
+  const [apiLeagueId, setApiLeagueId] = useState<string>("")
+  const [apiSeason, setApiSeason] = useState<string>("")
+  const [fetchLogs, setFetchLogs] = useState<any[]>([])
+  const [loadingLogs, setLoadingLogs] = useState(false)
   const [savingAutoFetch, setSavingAutoFetch] = useState(false)
 
   useEffect(() => {
@@ -86,6 +92,9 @@ export default function AdminPage() {
       setAutoFetchEnabled(currentTournament.auto_fetch_enabled || false)
       setAutoFetchTimes(currentTournament.auto_fetch_times || "08:00, 14:00, 20:00")
       setApiSportType((currentTournament.api_sport_type as any) || 'football')
+      setApiLeagueId(currentTournament.api_league_id?.toString() || '')
+      setApiSeason(currentTournament.api_season?.toString() || '')
+      loadFetchLogs(currentTournament.id)
     }
   }, [currentTournament])
 
@@ -152,6 +161,33 @@ export default function AdminPage() {
       setMessage('Chyba při načítání žebříčku: ' + (err?.message || 'Neznámá chyba'))
     } finally {
       setLoadingLeaderboard(false)
+    }
+  }
+
+  async function loadFetchLogs(tournamentId?: string) {
+    const tid = tournamentId || selectedTournament
+    if (!tid) { setFetchLogs([]); return }
+
+    setLoadingLogs(true)
+    try {
+      const { data, error } = await supabase
+        .from('fetch_logs')
+        .select('*')
+        .eq('tournament_id', tid)
+        .order('started_at', { ascending: false })
+        .limit(10)
+
+      if (error) {
+        console.error('Chyba při načítání logů:', error)
+        setFetchLogs([])
+      } else {
+        setFetchLogs(data || [])
+      }
+    } catch (err: any) {
+      console.error('Chyba při načítání logů:', err)
+      setFetchLogs([])
+    } finally {
+      setLoadingLogs(false)
     }
   }
 
@@ -254,12 +290,18 @@ export default function AdminPage() {
   async function saveAutoFetchSettings() {
     if (!currentTournament) return
     setSavingAutoFetch(true)
+
+    const leagueIdNum = apiLeagueId ? parseInt(apiLeagueId) : null
+    const seasonNum = apiSeason ? parseInt(apiSeason) : null
+
     const { error } = await supabase
       .from('tournaments')
       .update({
         auto_fetch_enabled: autoFetchEnabled,
         auto_fetch_times: autoFetchTimes,
-        api_sport_type: apiSportType
+        api_sport_type: apiSportType,
+        api_league_id: leagueIdNum,
+        api_season: seasonNum
       })
       .eq('id', currentTournament.id)
 
@@ -271,7 +313,9 @@ export default function AdminPage() {
         ...currentTournament,
         auto_fetch_enabled: autoFetchEnabled,
         auto_fetch_times: autoFetchTimes,
-        api_sport_type: apiSportType
+        api_sport_type: apiSportType,
+        api_league_id: leagueIdNum,
+        api_season: seasonNum
       })
     }
     setSavingAutoFetch(false)
@@ -810,6 +854,37 @@ export default function AdminPage() {
                       </button>
                     </div>
 
+                    {/* League / Season pro API-Football */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                          API League ID (např. 1 pro MS ve fotbale)
+                        </label>
+                        <input
+                          type="number"
+                          value={apiLeagueId}
+                          onChange={(e) => setApiLeagueId(e.target.value)}
+                          placeholder="1"
+                          className="w-full p-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+                          API Season (např. 2026)
+                        </label>
+                        <input
+                          type="number"
+                          value={apiSeason}
+                          onChange={(e) => setApiSeason(e.target.value)}
+                          placeholder="2026"
+                          className="w-full p-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">
+                      Pokud vyplníte League ID a Season, stáhne se celý turnaj v jednom requestu (šetří limit 100 req/den).
+                    </p>
+
                     {/* Zapnout/vypnout auto-fetch */}
                     <div className="flex items-center gap-3">
                       <button
@@ -869,8 +944,48 @@ export default function AdminPage() {
                       </button>
                     </div>
 
+                    {/* Poslední fetch logy */}
+                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Poslední fetch logy</span>
+                        <button
+                          onClick={() => currentTournament && loadFetchLogs(currentTournament.id)}
+                          disabled={loadingLogs}
+                          className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+                        >
+                          {loadingLogs ? 'Načítám...' : 'Obnovit'}
+                        </button>
+                      </div>
+                      {fetchLogs.length === 0 ? (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Zatím žádné logy.</p>
+                      ) : (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {fetchLogs.map((log) => (
+                            <div key={log.id} className="text-xs border-b border-gray-200 dark:border-gray-600 last:border-0 pb-1 last:pb-0">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium text-gray-700 dark:text-gray-300">
+                                  {new Date(log.started_at).toLocaleString('cs-CZ')}
+                                </span>
+                                <span className={`px-1.5 py-0.5 rounded ${log.error ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'}`}>
+                                  {log.error ? 'Chyba' : 'OK'}
+                                </span>
+                              </div>
+                              <div className="text-gray-500 dark:text-gray-400">
+                                {log.triggered_by === 'cron' ? 'Cron' : 'Manuálně'} · {log.api_calls || 0} API volání · {log.matches_updated || 0} aktualizováno · {log.matches_not_found || 0} nenalezeno
+                              </div>
+                              {log.error && (
+                                <div className="text-red-600 dark:text-red-400 truncate" title={log.error}>
+                                  {log.error}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Pro automatické spuštění nastav Vercel Cron nebo externí službu (cron-job.org) volající <code>/api/cron/fetch-results</code>.
+                      Pro automatické spuštění nastav cron-job.org na URL <code>/api/cron/fetch-results</code>, frekvenci <strong>každých 15 minut</strong> a header <code>Authorization: Bearer &lt;CRON_SECRET&gt;</code>.
                     </p>
                   </div>
                 </div>
