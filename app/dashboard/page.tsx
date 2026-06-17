@@ -415,7 +415,7 @@ function MatchCard({
   // ========== LAYOUT PRO ODEHRANÉ ZÁPASY ==========
   if (isFinished) {
     return (
-      <div className="bg-white dark:bg-card-dark rounded-2xl border border-gray-200 dark:border-border-dark p-5 shadow-sm relative transition-colors opacity-30">
+      <div className="bg-white/30 dark:bg-card-dark/30 rounded-2xl border border-gray-200 dark:border-border-dark p-5 shadow-sm relative transition-colors">
         {/* Horní řádek - status a čas */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -489,7 +489,7 @@ function MatchCard({
 
   // ========== LAYOUT PRO BĚŽNÉ ZÁPASY (původní) ==========
   return (
-    <div className="bg-white dark:bg-card-dark rounded-2xl border border-gray-200 dark:border-border-dark p-5 shadow-sm relative transition-colors opacity-70">
+    <div className="bg-white/70 dark:bg-card-dark/70 rounded-2xl border border-gray-200 dark:border-border-dark p-5 shadow-sm relative transition-colors">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Image src={getStatusIcon()} alt={getStatusText()} width={16} height={16} unoptimized={true} />

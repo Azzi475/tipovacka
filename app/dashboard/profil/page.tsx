@@ -88,7 +88,7 @@ export default function ProfilePage() {
         Profil
       </h2>
 
-      <form onSubmit={handleUpdateProfile} className="card p-6 space-y-4 opacity-70">
+      <form onSubmit={handleUpdateProfile} className="card p-6 space-y-4 bg-white/70 dark:bg-card-dark/70">
         <h3 className="text-lg font-semibold text-text-primary dark:text-white flex items-center gap-2">
           <Image src="/icons/nav-profile-light.svg" alt="" width={20} height={20} className="dark:hidden" unoptimized={true} />
           <Image src="/icons/nav-profile-dark.svg" alt="" width={20} height={20} className="hidden dark:block" unoptimized={true} />
@@ -144,7 +144,7 @@ export default function ProfilePage() {
         </button>
       </form>
 
-      <form onSubmit={handleChangePassword} className="card p-6 space-y-4 opacity-70">
+      <form onSubmit={handleChangePassword} className="card p-6 space-y-4 bg-white/70 dark:bg-card-dark/70">
         <h3 className="text-lg font-semibold text-text-primary dark:text-white flex items-center gap-2">
           <Image src="/icons/lock-light.svg" alt="" width={20} height={20} className="dark:hidden" unoptimized={true} />
           <Image src="/icons/lock-dark.svg" alt="" width={20} height={20} className="hidden dark:block" unoptimized={true} />

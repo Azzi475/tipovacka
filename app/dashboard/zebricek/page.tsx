@@ -84,7 +84,7 @@ export default function ZebricekPage() {
   if (isParticipant === false) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full text-center border border-gray-200 dark:border-gray-700 shadow-lg opacity-70">
+        <div className="bg-white/70 dark:bg-gray-800/70 rounded-2xl p-8 max-w-md w-full text-center border border-gray-200 dark:border-gray-700 shadow-lg">
           <div className="flex justify-center mb-4">
             <svg className="w-12 h-12 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
@@ -104,7 +104,7 @@ export default function ZebricekPage() {
     return (
       <div>
         <h1 className="text-[32px] leading-[40px] font-semibold text-text-primary dark:text-white mb-6">Žebříček</h1>
-        <div className="bg-white dark:bg-card-dark rounded-2xl p-8 border border-gray-200 dark:border-border-dark shadow-sm text-center opacity-70">
+        <div className="bg-white/70 dark:bg-card-dark/70 rounded-2xl p-8 border border-gray-200 dark:border-border-dark shadow-sm text-center">
           <div className="flex justify-center mb-4">
             <Image 
               src={theme === 'dark' ? '/icons/logo-trophy-dark.png' : '/icons/logo-trophy-light.png'}
@@ -129,7 +129,7 @@ export default function ZebricekPage() {
   return (
     <div>
       <h1 className="text-[32px] leading-[40px] font-semibold text-text-primary dark:text-white mb-6">Žebříček</h1>
-      <div className="bg-white dark:bg-card-dark rounded-2xl shadow-sm border border-gray-200 dark:border-border-dark overflow-hidden opacity-70">
+      <div className="bg-white/70 dark:bg-card-dark/70 rounded-2xl shadow-sm border border-gray-200 dark:border-border-dark overflow-hidden">
         {/* Hlavička tabulky */}
         <div className="p-4 bg-gray-50 dark:bg-border-dark/50 border-b border-gray-200 dark:border-border-dark">
           <div className={`grid gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${
