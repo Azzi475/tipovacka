@@ -176,7 +176,7 @@ export default function ProfilePage() {
       {/* Patička */}
       <footer className="text-center py-6 border-t border-gray-200 dark:border-gray-700 mt-8">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          2026 © Jan Arazim | Ver. 1.8.3
+          2026 © Jan Arazim | Ver. 1.8.4
         </p>
       </footer>
     </div>

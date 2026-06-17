@@ -55,7 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const logoSrc = theme === 'dark' ? '/icons/logo-trophy-dark.png' : '/icons/logo-trophy-light.png'
 
   return (
-    <div className="min-h-screen bg-bg-light dark:bg-bg-dark transition-colors duration-300 pb-24 relative">
+    <div className={`min-h-screen transition-colors duration-300 pb-24 relative ${bgTheme ? '' : 'bg-bg-light dark:bg-bg-dark'}`}>
       {/* Pozadí turnaje */}
       {bgTheme && (
         <div
@@ -111,7 +111,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </div>
 
-      <main className="max-w-3xl mx-auto px-4 py-4">
+      <main className="relative z-10 max-w-3xl mx-auto px-4 py-4">
         {children}
       </main>
 
