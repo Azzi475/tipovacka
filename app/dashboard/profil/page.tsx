@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
-import { useTheme } from '@/components/theme-provider'
 
 interface Profile {
   first_name: string
@@ -13,7 +12,6 @@ interface Profile {
 }
 
 export default function ProfilePage() {
-  const { theme } = useTheme()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -90,7 +88,7 @@ export default function ProfilePage() {
         Profil
       </h2>
 
-      <form onSubmit={handleUpdateProfile} className="card p-6 space-y-4" style={{ backgroundColor: theme === 'dark' ? 'rgba(26, 39, 64, 0.7)' : 'rgba(255, 255, 255, 0.7)' }}>
+      <form onSubmit={handleUpdateProfile} className="p-6 space-y-4 rounded-2xl border border-gray-200 dark:border-border-dark shadow-sm bg-white/70 dark:bg-card-dark/70">
         <h3 className="text-lg font-semibold text-text-primary dark:text-white flex items-center gap-2">
           <Image src="/icons/nav-profile-light.svg" alt="" width={20} height={20} className="dark:hidden" unoptimized={true} />
           <Image src="/icons/nav-profile-dark.svg" alt="" width={20} height={20} className="hidden dark:block" unoptimized={true} />
@@ -146,7 +144,7 @@ export default function ProfilePage() {
         </button>
       </form>
 
-      <form onSubmit={handleChangePassword} className="card p-6 space-y-4" style={{ backgroundColor: theme === 'dark' ? 'rgba(26, 39, 64, 0.7)' : 'rgba(255, 255, 255, 0.7)' }}>
+      <form onSubmit={handleChangePassword} className="p-6 space-y-4 rounded-2xl border border-gray-200 dark:border-border-dark shadow-sm bg-white/70 dark:bg-card-dark/70">
         <h3 className="text-lg font-semibold text-text-primary dark:text-white flex items-center gap-2">
           <Image src="/icons/lock-light.svg" alt="" width={20} height={20} className="dark:hidden" unoptimized={true} />
           <Image src="/icons/lock-dark.svg" alt="" width={20} height={20} className="hidden dark:block" unoptimized={true} />
@@ -178,7 +176,7 @@ export default function ProfilePage() {
       {/* Patička */}
       <footer className="text-center py-6 border-t border-gray-200 dark:border-gray-700 mt-8">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          2026 © Jan Arazim | Ver. 1.8.2
+          2026 © Jan Arazim | Ver. 1.8.3
         </p>
       </footer>
     </div>

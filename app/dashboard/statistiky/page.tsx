@@ -75,13 +75,13 @@ export default function StatistikyPage() {
 
       {/* Hlavní statistiky */}
       <div className="grid grid-cols-2 gap-3 mb-6">
-        <div className="rounded-2xl p-5 border border-gray-200 dark:border-border-dark shadow-sm text-center" style={{ backgroundColor: theme === 'dark' ? 'rgba(26, 39, 64, 0.7)' : 'rgba(255, 255, 255, 0.7)' }}>
+        <div className="bg-white/70 dark:bg-card-dark/70 rounded-2xl p-5 border border-gray-200 dark:border-border-dark shadow-sm text-center">
           <div className="text-3xl font-black text-primary-blue dark:text-secondary-dark mb-1">
             {stats.totalPoints}
           </div>
           <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">Celkem bodů</div>
         </div>
-        <div className="rounded-2xl p-5 border border-gray-200 dark:border-border-dark shadow-sm text-center" style={{ backgroundColor: theme === 'dark' ? 'rgba(26, 39, 64, 0.7)' : 'rgba(255, 255, 255, 0.7)' }}>
+        <div className="bg-white/70 dark:bg-card-dark/70 rounded-2xl p-5 border border-gray-200 dark:border-border-dark shadow-sm text-center">
           <div className="text-3xl font-black text-emerald-500 dark:text-emerald-400 mb-1">
             {stats.accuracy}%
           </div>
@@ -90,7 +90,7 @@ export default function StatistikyPage() {
       </div>
 
       {/* Detailní statistiky */}
-      <div className="rounded-2xl border border-gray-200 dark:border-border-dark shadow-sm overflow-hidden mb-6" style={{ backgroundColor: theme === 'dark' ? 'rgba(26, 39, 64, 0.7)' : 'rgba(255, 255, 255, 0.7)' }}>
+      <div className="bg-white/70 dark:bg-card-dark/70 rounded-2xl border border-gray-200 dark:border-border-dark shadow-sm overflow-hidden mb-6">
         <div className="p-4 border-b border-gray-100 dark:border-border-dark">
           <h2 className="font-bold text-text-primary dark:text-white">Detailní přehled</h2>
         </div>
@@ -124,7 +124,7 @@ export default function StatistikyPage() {
       </div>
 
       {/* Bodovací systém */}
-      <div className="rounded-2xl border border-gray-200 dark:border-border-dark shadow-sm p-5" style={{ backgroundColor: theme === 'dark' ? 'rgba(26, 39, 64, 0.7)' : 'rgba(255, 255, 255, 0.7)' }}>
+      <div className="bg-white/70 dark:bg-card-dark/70 rounded-2xl border border-gray-200 dark:border-border-dark shadow-sm p-5">
         <h2 className="font-bold text-text-primary dark:text-white mb-4">Bodovací systém</h2>
         <div className="space-y-3">
           <div className="flex items-center gap-3">
