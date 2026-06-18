@@ -177,54 +177,41 @@ async function handleFetch(triggeredBy: 'cron' | 'manual') {
         continue
       }
 
-      let apiItems: ApiFixture[] = []
+      const apiItemsByDate: Record<string, ApiFixture[]> = {}
 
-      // Strategie: pokud máme league + season, stáhneme celý turnaj najednou
-      if (tournament.api_league_id && tournament.api_season) {
-        const searchUrl = `https://${apiHost}/${endpoint}?league=${tournament.api_league_id}&season=${tournament.api_season}`
+      // Free plan API-Football nepodporuje league/season pro MS 2026.
+      // Používáme date-based volání: jedno volání pro každý den, ve kterém máme nedokončené zápasy.
+      const dates = new Set<string>()
+      for (const match of matches) {
+        const kickoff = new Date(match.kickoff_at)
+        const dateStr = kickoff.toISOString().split('T')[0]
+        dates.add(dateStr)
+      }
+
+      const dateErrors: string[] = []
+      for (const dateStr of dates) {
+        const searchUrl = `https://${apiHost}/${endpoint}?date=${dateStr}`
         const { items, calls, apiErrors, resultCount, rawPreview } = await fetchFromApi(searchUrl, apiHost)
         apiCalls += calls
-        apiItems = items
-        debug.leagueSeasonUrl = searchUrl
-        debug.leagueSeasonErrors = apiErrors
-        debug.leagueSeasonResultCount = resultCount
-        debug.leagueSeasonPreview = rawPreview
-
-        if (apiErrors.length > 0) {
-          errorMessage = `API chyba: ${apiErrors.join(', ')}`
-        }
+        apiItemsByDate[dateStr] = items
+        dateErrors.push(...apiErrors)
+        debug[`date_${dateStr}`] = { url: searchUrl, resultCount, errors: apiErrors, preview: rawPreview }
       }
 
-      // Fallback na date-based, pokud league/season nevrátilo nic nebo nebylo nastaveno
-      if (apiItems.length === 0) {
-        const dates = new Set<string>()
-        for (const match of matches) {
-          const kickoff = new Date(match.kickoff_at)
-          const dateStr = kickoff.toISOString().split('T')[0]
-          dates.add(dateStr)
-        }
-
-        const dateErrors: string[] = []
-        for (const dateStr of dates) {
-          const searchUrl = `https://${apiHost}/${endpoint}?date=${dateStr}`
-          const { items, calls, apiErrors, resultCount, rawPreview } = await fetchFromApi(searchUrl, apiHost)
-          apiCalls += calls
-          apiItems.push(...items)
-          dateErrors.push(...apiErrors)
-          debug[`date_${dateStr}`] = { url: searchUrl, resultCount, errors: apiErrors, preview: rawPreview }
-        }
-
-        if (dateErrors.length > 0 && !errorMessage) {
-          errorMessage = `API chyba (date fallback): ${dateErrors.join(', ')}`
-        }
+      if (dateErrors.length > 0) {
+        errorMessage = `API chyba: ${dateErrors.join(', ')}`
       }
 
-      debug.totalApiItems = apiItems.length
       debug.unfinishedMatches = matches.length
+      debug.datesChecked = Array.from(dates)
 
       // Projdi naše zápasy a najdi odpovídající záznam z API
       for (const match of matches) {
         try {
+          const kickoff = new Date(match.kickoff_at)
+          const dateStr = kickoff.toISOString().split('T')[0]
+          const apiItems = apiItemsByDate[dateStr] || []
+
           const found = apiItems.find((f: ApiFixture) => {
             const home = f.teams.home.name.toLowerCase()
             const away = f.teams.away.name.toLowerCase()
