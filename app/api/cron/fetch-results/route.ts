@@ -249,14 +249,10 @@ async function handleFetch(triggeredBy: 'cron' | 'manual') {
           let awayScore: number | null = null
 
           if (isWorldCup26) {
-            const matchDate = new Date(match.kickoff_at)
-
             const found = worldCup26Fixtures.find((f: WorldCup26Fixture) => {
-              if (!f.date) return false
-              const [fMonth, fDay, fYear] = f.date.split(' ')[0].split('/')
-              const fDate = new Date(`${fYear}-${fMonth}-${fDay}T00:00:00`)
+              // Ve skupinové fázi je každá dvojice týmů unikátní.
+              // API vrací místní datum, DB má časy v jiném pásmu, proto porovnáváme jen týmy.
               return (
-                fDate.toDateString() === matchDate.toDateString() &&
                 teamNameMatches(f.home, match.home_team_name) &&
                 teamNameMatches(f.away, match.away_team_name)
               )
@@ -264,6 +260,8 @@ async function handleFetch(triggeredBy: 'cron' | 'manual') {
 
             if (!found) {
               notFound++
+              debug.notFoundList = debug.notFoundList || []
+              ;(debug.notFoundList as string[]).push(`${match.home_team_name} vs ${match.away_team_name}`)
               continue
             }
 
