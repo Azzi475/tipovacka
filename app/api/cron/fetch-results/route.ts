@@ -36,6 +36,7 @@ interface FetchResult {
   apiCalls?: number
   skipped?: string
   error?: string | null
+  debug?: Record<string, unknown>
 }
 
 export async function GET(_request: Request) {
@@ -77,6 +78,52 @@ export async function POST(_request: Request) {
   return handleFetch('manual')
 }
 
+async function fetchFromApi(searchUrl: string, apiHost: string) {
+  const res = await fetch(searchUrl, {
+    headers: {
+      'x-apisports-key': API_FOOTBALL_KEY,
+      'x-rapidapi-key': API_FOOTBALL_KEY,
+      'x-rapidapi-host': apiHost,
+    },
+  })
+
+  const data = await res.json()
+  const apiErrors: string[] = []
+
+  if (!res.ok) {
+    apiErrors.push(`HTTP ${res.status}`)
+  }
+
+  if (data && typeof data === 'object') {
+    if (data.errors && typeof data.errors === 'object' && Object.keys(data.errors).length > 0) {
+      for (const [key, value] of Object.entries(data.errors)) {
+        apiErrors.push(`${key}: ${value}`)
+      }
+    }
+  }
+
+  const items: ApiFixture[] = data?.response || []
+  const resultCount = typeof data?.results === 'number' ? data.results : items.length
+  const rawPreview = items.slice(0, 2).map((f: ApiFixture) => ({
+    status: isHockeyFixture(f) ? f.status?.short : f.fixture?.status?.short,
+    home: f.teams?.home?.name,
+    away: f.teams?.away?.name,
+    score: isHockeyFixture(f) ? f.scores : f.score?.fulltime,
+  }))
+
+  return {
+    items,
+    calls: 1,
+    apiErrors,
+    resultCount,
+    rawPreview,
+  }
+}
+
+function isHockeyFixture(f: ApiFixture): boolean {
+  return 'scores' in f && f.scores !== undefined
+}
+
 async function handleFetch(triggeredBy: 'cron' | 'manual') {
   const supabase = await createClient()
 
@@ -108,6 +155,7 @@ async function handleFetch(triggeredBy: 'cron' | 'manual') {
     let notFound = 0
     let apiCalls = 0
     let errorMessage: string | null = null
+    const debug: Record<string, unknown> = {}
 
     try {
       const sport = tournament.api_sport_type || 'football'
@@ -134,22 +182,21 @@ async function handleFetch(triggeredBy: 'cron' | 'manual') {
       // Strategie: pokud máme league + season, stáhneme celý turnaj najednou
       if (tournament.api_league_id && tournament.api_season) {
         const searchUrl = `https://${apiHost}/${endpoint}?league=${tournament.api_league_id}&season=${tournament.api_season}`
-        const res = await fetch(searchUrl, {
-          headers: {
-            'x-rapidapi-key': API_FOOTBALL_KEY,
-            'x-rapidapi-host': apiHost,
-          },
-        })
-        apiCalls++
+        const { items, calls, apiErrors, resultCount, rawPreview } = await fetchFromApi(searchUrl, apiHost)
+        apiCalls += calls
+        apiItems = items
+        debug.leagueSeasonUrl = searchUrl
+        debug.leagueSeasonErrors = apiErrors
+        debug.leagueSeasonResultCount = resultCount
+        debug.leagueSeasonPreview = rawPreview
 
-        if (!res.ok) {
-          throw new Error(`API HTTP ${res.status}`)
+        if (apiErrors.length > 0) {
+          errorMessage = `API chyba: ${apiErrors.join(', ')}`
         }
+      }
 
-        const data = await res.json()
-        apiItems = data.response || []
-      } else {
-        // Fallback: seskupit zápasy podle data a stáhnout po dnech
+      // Fallback na date-based, pokud league/season nevrátilo nic nebo nebylo nastaveno
+      if (apiItems.length === 0) {
         const dates = new Set<string>()
         for (const match of matches) {
           const kickoff = new Date(match.kickoff_at)
@@ -157,24 +204,23 @@ async function handleFetch(triggeredBy: 'cron' | 'manual') {
           dates.add(dateStr)
         }
 
+        const dateErrors: string[] = []
         for (const dateStr of dates) {
           const searchUrl = `https://${apiHost}/${endpoint}?date=${dateStr}`
-          const res = await fetch(searchUrl, {
-            headers: {
-              'x-rapidapi-key': API_FOOTBALL_KEY,
-              'x-rapidapi-host': apiHost,
-            },
-          })
-          apiCalls++
+          const { items, calls, apiErrors, resultCount, rawPreview } = await fetchFromApi(searchUrl, apiHost)
+          apiCalls += calls
+          apiItems.push(...items)
+          dateErrors.push(...apiErrors)
+          debug[`date_${dateStr}`] = { url: searchUrl, resultCount, errors: apiErrors, preview: rawPreview }
+        }
 
-          if (!res.ok) {
-            throw new Error(`API HTTP ${res.status} pro datum ${dateStr}`)
-          }
-
-          const data = await res.json()
-          apiItems.push(...(data.response || []))
+        if (dateErrors.length > 0 && !errorMessage) {
+          errorMessage = `API chyba (date fallback): ${dateErrors.join(', ')}`
         }
       }
+
+      debug.totalApiItems = apiItems.length
+      debug.unfinishedMatches = matches.length
 
       // Projdi naše zápasy a najdi odpovídající záznam z API
       for (const match of matches) {
@@ -236,13 +282,18 @@ async function handleFetch(triggeredBy: 'cron' | 'manual') {
       error: errorMessage
     })
 
+    debug.updated = updated
+    debug.notFound = notFound
+    debug.error = errorMessage
+
     results.push({
       tournament: tournament.name,
       sport: tournament.api_sport_type || 'football',
       updated,
       notFound,
       apiCalls,
-      error: errorMessage
+      error: errorMessage,
+      debug
     })
   }
 

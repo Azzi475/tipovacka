@@ -86,6 +86,7 @@ export default function AdminPage() {
   const [fetchLogs, setFetchLogs] = useState<any[]>([])
   const [loadingLogs, setLoadingLogs] = useState(false)
   const [savingAutoFetch, setSavingAutoFetch] = useState(false)
+  const [fetchDebug, setFetchDebug] = useState<Record<string, unknown> | null>(null)
 
   useEffect(() => {
     if (currentTournament) {
@@ -327,14 +328,17 @@ export default function AdminPage() {
       const res = await fetch('/api/cron/fetch-results', { method: 'POST' })
       const data = await res.json()
       if (res.ok) {
-        const summary = data.results.map((r: any) => `${r.tournament}: ${r.updated} vyhodnoceno`).join(', ')
+        const summary = data.results.map((r: any) => `${r.tournament}: ${r.updated} vyhodnoceno, ${r.notFound} nenalezeno`).join(' | ')
         setMessage('Auto-fetch dokončen: ' + (summary || 'Žádné změny'))
+        setFetchDebug(data.results?.[0]?.debug || null)
         loadData()
       } else {
         setMessage('Chyba auto-fetch: ' + (data.error || 'Neznámá chyba'))
+        setFetchDebug(null)
       }
     } catch (err: any) {
       setMessage('Chyba: ' + (err?.message || 'Neznámá chyba'))
+      setFetchDebug(null)
     }
     setScraping(false)
   }
@@ -348,12 +352,15 @@ export default function AdminPage() {
       if (res.ok) {
         const summary = data.results?.map((r: any) => `${r.tournament}: ${r.updated} vyhodnoceno, ${r.notFound} nenalezeno`).join(' | ')
         setMessage('Výsledky načteny: ' + (summary || 'Žádné změny'))
+        setFetchDebug(data.results?.[0]?.debug || null)
         loadData()
       } else {
         setMessage('Chyba: ' + (data.error || 'Neznámá chyba'))
+        setFetchDebug(null)
       }
     } catch (err: any) {
       setMessage('Chyba: ' + (err?.message || 'Neznámá chyba'))
+      setFetchDebug(null)
     }
     setScraping(false)
   }
@@ -567,6 +574,23 @@ export default function AdminPage() {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {message && <div className="mb-6 p-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-xl text-sm font-medium">{message}</div>}
+
+        {fetchDebug && (
+          <div className="mb-6 p-3 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Debug info z API</span>
+              <button
+                onClick={() => setFetchDebug(null)}
+                className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
+              >
+                Skrýt
+              </button>
+            </div>
+            <pre className="text-xs text-gray-700 dark:text-gray-300 overflow-x-auto whitespace-pre-wrap break-all">
+              {JSON.stringify(fetchDebug, null, 2)}
+            </pre>
+          </div>
+        )}
 
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
           <div className="flex items-center justify-between mb-3">
