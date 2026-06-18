@@ -80,6 +80,7 @@ export default function AdminPage() {
   const [scraping, setScraping] = useState(false)
   const [autoFetchEnabled, setAutoFetchEnabled] = useState(false)
   const [autoFetchTimes, setAutoFetchTimes] = useState("08:00, 14:00, 20:00")
+  const [autoFetchMode, setAutoFetchMode] = useState<'manual' | 'every15min' | 'scheduled'>('manual')
   const [apiSportType, setApiSportType] = useState<"football" | "football_wc26" | "ice_hockey">("football")
   const [apiLeagueId, setApiLeagueId] = useState<string>("")
   const [apiSeason, setApiSeason] = useState<string>("")
@@ -90,8 +91,20 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (currentTournament) {
-      setAutoFetchEnabled(currentTournament.auto_fetch_enabled || false)
-      setAutoFetchTimes(currentTournament.auto_fetch_times || "08:00, 14:00, 20:00")
+      const enabled = currentTournament.auto_fetch_enabled || false
+      const times = currentTournament.auto_fetch_times || "08:00, 14:00, 20:00"
+      setAutoFetchEnabled(enabled)
+      setAutoFetchTimes(times)
+
+      // Urči režim auto-fetch
+      if (!enabled) {
+        setAutoFetchMode('manual')
+      } else if (times.trim() === '*') {
+        setAutoFetchMode('every15min')
+      } else {
+        setAutoFetchMode('scheduled')
+      }
+
       // MS 2026 provider se pozná podle api_league_id = 999999
       if (currentTournament.api_league_id === 999999) {
         setApiSportType('football_wc26')
@@ -309,11 +322,23 @@ export default function AdminPage() {
       leagueIdNum = 999999
     }
 
+    // Nastavení auto-fetch podle režimu
+    let enabled = false
+    let times = autoFetchTimes
+    if (autoFetchMode === 'every15min') {
+      enabled = true
+      times = '*'
+    } else if (autoFetchMode === 'scheduled') {
+      enabled = true
+    } else {
+      enabled = false
+    }
+
     const { error } = await supabase
       .from('tournaments')
       .update({
-        auto_fetch_enabled: autoFetchEnabled,
-        auto_fetch_times: autoFetchTimes,
+        auto_fetch_enabled: enabled,
+        auto_fetch_times: times,
         api_sport_type: sportType,
         api_league_id: leagueIdNum,
         api_season: seasonNum
@@ -324,10 +349,12 @@ export default function AdminPage() {
       setMessage('Chyba: ' + error.message)
     } else {
       setMessage('Nastavení auto-fetch uloženo!')
+      setAutoFetchEnabled(enabled)
+      setAutoFetchTimes(times)
       setCurrentTournament({
         ...currentTournament,
-        auto_fetch_enabled: autoFetchEnabled,
-        auto_fetch_times: autoFetchTimes,
+        auto_fetch_enabled: enabled,
+        auto_fetch_times: times,
         api_sport_type: sportType,
         api_league_id: leagueIdNum,
         api_season: seasonNum
@@ -933,27 +960,58 @@ export default function AdminPage() {
                       Pokud vyplníte League ID a Season, stáhne se celý turnaj v jednom requestu (šetří limit 100 req/den).
                     </p>
 
-                    {/* Zapnout/vypnout auto-fetch */}
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => setAutoFetchEnabled(!autoFetchEnabled)}
-                        className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${
-                          autoFetchEnabled ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
-                        }`}
-                      >
-                        <span
-                          className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
-                            autoFetchEnabled ? 'translate-x-4' : 'translate-x-0'
+                    {/* Režim auto-fetch */}
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Režim auto-fetch
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => setAutoFetchMode('manual')}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                            autoFetchMode === 'manual'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                           }`}
-                        />
-                      </button>
-                      <span className="text-sm text-gray-700 dark:text-gray-300">
-                        {autoFetchEnabled ? 'Auto-fetch zapnuto' : 'Auto-fetch vypnuto'}
-                      </span>
+                        >
+                          Vypnuto (jen tlačítko)
+                        </button>
+                        <button
+                          onClick={() => setAutoFetchMode('every15min')}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                            autoFetchMode === 'every15min'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                          }`}
+                        >
+                          Každých 15 minut
+                        </button>
+                        <button
+                          onClick={() => setAutoFetchMode('scheduled')}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                            autoFetchMode === 'scheduled'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                          }`}
+                        >
+                          Podle časů
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Časy */}
-                    {autoFetchEnabled && (
+                    {autoFetchMode === 'manual' && (
+                      <div className="text-xs text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/50 p-2 rounded-lg border border-gray-200 dark:border-gray-600">
+                        Auto-fetch je vypnutý. Výsledky se načítají pouze ručním tlačítkem „Spustit teď“.
+                      </div>
+                    )}
+
+                    {autoFetchMode === 'every15min' && (
+                      <div className="text-xs text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-200 dark:border-blue-800">
+                        Cron-job.org volá endpoint každých 15 minut a fetch proběhne při každém volání.
+                      </div>
+                    )}
+
+                    {autoFetchMode === 'scheduled' && (
                       <div>
                         <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
                           Časy načítání (HH:MM, oddělené čárkou)
@@ -966,7 +1024,7 @@ export default function AdminPage() {
                           className="w-full p-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                         />
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Zadej časy ve formátu HH:MM, oddělené čárkou. Např. 08:00, 14:00, 20:00
+                          Cron-job.org volá endpoint každých 15 minut, ale fetch proběhne pouze v těchto časech.
                         </p>
                       </div>
                     )}
@@ -1033,7 +1091,7 @@ export default function AdminPage() {
                     </div>
 
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Pro automatické spuštění nastav cron-job.org na URL <code>/api/cron/fetch-results</code>, frekvenci <strong>každých 15 minut</strong> a header <code>Authorization: Bearer &lt;CRON_SECRET&gt;</code>.
+                      Pro automatické spuštění nastav cron-job.org na URL <code>/api/cron/fetch-results</code>, frekvenci <strong>každých 15 minut</strong> a header <code>Authorization: Bearer &lt;CRON_SECRET&gt;</code>. Endpoint se spustí vždy, ale fetch proběhne pouze ve výše nastavených časech.
                     </p>
                   </div>
                 </div>

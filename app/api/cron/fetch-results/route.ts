@@ -54,7 +54,8 @@ export async function GET(_request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  return handleFetch('cron')
+  // Cron kontroluje nastavené časy, aby fetch proběhl jen v požadovaných hodinách
+  return handleFetch('cron', true)
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -77,7 +78,8 @@ export async function POST(_request: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  return handleFetch('manual')
+  // Manuální spuštění ignoruje časové omezení
+  return handleFetch('manual', false)
 }
 
 async function fetchFromApi(searchUrl: string, apiHost: string) {
@@ -147,7 +149,7 @@ function teamNameMatches(apiName: string, dbName: string): boolean {
   return false
 }
 
-async function handleFetch(triggeredBy: 'cron' | 'manual') {
+async function handleFetch(triggeredBy: 'cron' | 'manual', checkTime: boolean = false) {
   const supabase = await createClient()
 
   if (!API_FOOTBALL_KEY) {
@@ -172,6 +174,31 @@ async function handleFetch(triggeredBy: 'cron' | 'manual') {
   const results: FetchResult[] = []
 
   for (const tournament of tournaments) {
+    // Cron kontroluje nastavené časy, pokud není zvolen režim "každých 15 minut" (*)
+    if (checkTime && tournament.auto_fetch_times && tournament.auto_fetch_times.trim() !== '*') {
+      const fetchTimes = tournament.auto_fetch_times
+        .split(',')
+        .map((t: string) => t.trim())
+        .filter(Boolean)
+
+      const now = new Date()
+      const czTime = now.toLocaleTimeString('cs-CZ', {
+        timeZone: 'Europe/Prague',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      })
+
+      if (fetchTimes.length > 0 && !fetchTimes.includes(czTime)) {
+        results.push({
+          tournament: tournament.name,
+          sport: tournament.api_sport_type || 'football',
+          skipped: `Není čas (${czTime})`
+        })
+        continue
+      }
+    }
+
     const logId = await insertFetchLog(supabase, tournament.id, triggeredBy)
 
     let updated = 0
