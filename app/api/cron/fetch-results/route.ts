@@ -208,11 +208,18 @@ async function handleFetch(triggeredBy: 'cron' | 'manual') {
 
       if (isWorldCup26) {
         // Bezplatné API pro MS 2026 — vrací všechny zápasy turnaje v jednom requestu
-        worldCup26Fixtures = await fetchWorldCup26Fixtures()
-        apiCalls++
-        debug.provider = 'worldcup26'
-        debug.fixturesCount = worldCup26Fixtures.length
-        debug.finishedCount = worldCup26Fixtures.filter((f) => f.finished).length
+        try {
+          worldCup26Fixtures = await fetchWorldCup26Fixtures()
+          apiCalls++
+          debug.provider = 'worldcup26'
+          debug.fixturesCount = worldCup26Fixtures.length
+          debug.finishedCount = worldCup26Fixtures.filter((f) => f.finished).length
+        } catch (err: unknown) {
+          const detail = err instanceof Error ? err.message : 'Neznámá chyba'
+          errorMessage = `WorldCup26 API selhalo: ${detail}`
+          debug.providerError = detail
+          debug.providerErrorStack = err instanceof Error ? err.stack : null
+        }
       } else {
         // API-Football / Hockey: date-based volání (free plan nepodporuje league/season pro MS 2026)
         const dates = new Set<string>()
