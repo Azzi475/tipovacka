@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { evaluateMatch } from '@/lib/matches/evaluate'
+import { fetchWorldCup26Fixtures, WorldCup26Fixture } from '@/lib/matches/providers/worldcup26'
+import { getFlagCode, teamFlags } from '@/lib/flags'
 import { NextResponse } from 'next/server'
 
 const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY || ''
@@ -124,6 +126,27 @@ function isHockeyFixture(f: ApiFixture): boolean {
   return 'scores' in f && f.scores !== undefined
 }
 
+function teamNameMatches(apiName: string, dbName: string): boolean {
+  const a = apiName.trim().toLowerCase()
+  const b = dbName.trim().toLowerCase()
+
+  if (!a || !b) return false
+  if (a === b) return true
+  if (a.includes(b) || b.includes(a)) return true
+  if (a.length >= 4 && b.length >= 4) {
+    if (a.includes(b.slice(0, 4)) || b.includes(a.slice(0, 4))) return true
+  }
+
+  // Porovnání podle flag code (pouze pokud obě jména máme v mapě)
+  const flagA = getFlagCode(apiName)
+  const flagB = getFlagCode(dbName)
+  const knownA = apiName in teamFlags
+  const knownB = dbName in teamFlags
+  if (knownA && knownB && flagA === flagB) return true
+
+  return false
+}
+
 async function handleFetch(triggeredBy: 'cron' | 'manual') {
   const supabase = await createClient()
 
@@ -177,75 +200,105 @@ async function handleFetch(triggeredBy: 'cron' | 'manual') {
         continue
       }
 
+      const isWorldCup26 = sport === 'football_wc26'
+      let worldCup26Fixtures: WorldCup26Fixture[] = []
       const apiItemsByDate: Record<string, ApiFixture[]> = {}
 
-      // Free plan API-Football nepodporuje league/season pro MS 2026.
-      // Používáme date-based volání: jedno volání pro každý den, ve kterém máme nedokončené zápasy.
-      const dates = new Set<string>()
-      for (const match of matches) {
-        const kickoff = new Date(match.kickoff_at)
-        const dateStr = kickoff.toISOString().split('T')[0]
-        dates.add(dateStr)
-      }
+      if (isWorldCup26) {
+        // Bezplatné API pro MS 2026 — vrací všechny zápasy turnaje v jednom requestu
+        worldCup26Fixtures = await fetchWorldCup26Fixtures()
+        apiCalls++
+        debug.provider = 'worldcup26'
+        debug.fixturesCount = worldCup26Fixtures.length
+        debug.finishedCount = worldCup26Fixtures.filter((f) => f.finished).length
+      } else {
+        // API-Football / Hockey: date-based volání (free plan nepodporuje league/season pro MS 2026)
+        const dates = new Set<string>()
+        for (const match of matches) {
+          const kickoff = new Date(match.kickoff_at)
+          const dateStr = kickoff.toISOString().split('T')[0]
+          dates.add(dateStr)
+        }
 
-      const dateErrors: string[] = []
-      for (const dateStr of dates) {
-        const searchUrl = `https://${apiHost}/${endpoint}?date=${dateStr}`
-        const { items, calls, apiErrors, resultCount, rawPreview } = await fetchFromApi(searchUrl, apiHost)
-        apiCalls += calls
-        apiItemsByDate[dateStr] = items
-        dateErrors.push(...apiErrors)
-        debug[`date_${dateStr}`] = { url: searchUrl, resultCount, errors: apiErrors, preview: rawPreview }
-      }
+        const dateErrors: string[] = []
+        for (const dateStr of dates) {
+          const searchUrl = `https://${apiHost}/${endpoint}?date=${dateStr}`
+          const { items, calls, apiErrors, resultCount, rawPreview } = await fetchFromApi(searchUrl, apiHost)
+          apiCalls += calls
+          apiItemsByDate[dateStr] = items
+          dateErrors.push(...apiErrors)
+          debug[`date_${dateStr}`] = { url: searchUrl, resultCount, errors: apiErrors, preview: rawPreview }
+        }
 
-      if (dateErrors.length > 0) {
-        errorMessage = `API chyba: ${dateErrors.join(', ')}`
+        if (dateErrors.length > 0) {
+          errorMessage = `API chyba: ${dateErrors.join(', ')}`
+        }
+
+        debug.datesChecked = Array.from(dates)
       }
 
       debug.unfinishedMatches = matches.length
-      debug.datesChecked = Array.from(dates)
 
       // Projdi naše zápasy a najdi odpovídající záznam z API
       for (const match of matches) {
         try {
-          const kickoff = new Date(match.kickoff_at)
-          const dateStr = kickoff.toISOString().split('T')[0]
-          const apiItems = apiItemsByDate[dateStr] || []
-
-          const found = apiItems.find((f: ApiFixture) => {
-            const home = f.teams.home.name.toLowerCase()
-            const away = f.teams.away.name.toLowerCase()
-            const matchHome = match.home_team_name.toLowerCase()
-            const matchAway = match.away_team_name.toLowerCase()
-
-            return (
-              (home.includes(matchHome) || matchHome.includes(home) || home.includes(matchHome.slice(0, 4))) &&
-              (away.includes(matchAway) || matchAway.includes(away) || away.includes(matchAway.slice(0, 4)))
-            )
-          })
-
-          if (!found) {
-            notFound++
-            continue
-          }
-
-          // Zjisti, jestli je zápas dokončený a načti skóre
           let isFinished = false
           let homeScore: number | null = null
           let awayScore: number | null = null
 
-          if (isHockey) {
-            const status = found.status?.short
-            isFinished = status === 'FT' || status === 'OT' || status === 'SO'
-            if (isFinished && found.scores) {
-              homeScore = parseInt(String(found.scores.home))
-              awayScore = parseInt(String(found.scores.away))
+          if (isWorldCup26) {
+            const matchDate = new Date(match.kickoff_at)
+
+            const found = worldCup26Fixtures.find((f: WorldCup26Fixture) => {
+              if (!f.date) return false
+              const [fMonth, fDay, fYear] = f.date.split(' ')[0].split('/')
+              const fDate = new Date(`${fYear}-${fMonth}-${fDay}T00:00:00`)
+              return (
+                fDate.toDateString() === matchDate.toDateString() &&
+                teamNameMatches(f.home, match.home_team_name) &&
+                teamNameMatches(f.away, match.away_team_name)
+              )
+            })
+
+            if (!found) {
+              notFound++
+              continue
             }
+
+            isFinished = found.finished
+            homeScore = found.homeScore
+            awayScore = found.awayScore
+            debug.lastMatched = { home: found.home, away: found.away, finished: found.finished, score: `${homeScore}:${awayScore}` }
           } else {
-            isFinished = found.fixture?.status.short === 'FT'
-            if (isFinished && found.score?.fulltime) {
-              homeScore = parseInt(String(found.score.fulltime.home))
-              awayScore = parseInt(String(found.score.fulltime.away))
+            const kickoff = new Date(match.kickoff_at)
+            const dateStr = kickoff.toISOString().split('T')[0]
+            const apiItems = apiItemsByDate[dateStr] || []
+
+            const found = apiItems.find((f: ApiFixture) => {
+              return (
+                teamNameMatches(f.teams.home.name, match.home_team_name) &&
+                teamNameMatches(f.teams.away.name, match.away_team_name)
+              )
+            })
+
+            if (!found) {
+              notFound++
+              continue
+            }
+
+            if (isHockey) {
+              const status = found.status?.short
+              isFinished = status === 'FT' || status === 'OT' || status === 'SO'
+              if (isFinished && found.scores) {
+                homeScore = parseInt(String(found.scores.home))
+                awayScore = parseInt(String(found.scores.away))
+              }
+            } else {
+              isFinished = found.fixture?.status.short === 'FT'
+              if (isFinished && found.score?.fulltime) {
+                homeScore = parseInt(String(found.score.fulltime.home))
+                awayScore = parseInt(String(found.score.fulltime.away))
+              }
             }
           }
 

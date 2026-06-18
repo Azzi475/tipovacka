@@ -80,7 +80,7 @@ export default function AdminPage() {
   const [scraping, setScraping] = useState(false)
   const [autoFetchEnabled, setAutoFetchEnabled] = useState(false)
   const [autoFetchTimes, setAutoFetchTimes] = useState("08:00, 14:00, 20:00")
-  const [apiSportType, setApiSportType] = useState<"football" | "ice_hockey">("football")
+  const [apiSportType, setApiSportType] = useState<"football" | "football_wc26" | "ice_hockey">("football")
   const [apiLeagueId, setApiLeagueId] = useState<string>("")
   const [apiSeason, setApiSeason] = useState<string>("")
   const [fetchLogs, setFetchLogs] = useState<any[]>([])
@@ -864,7 +864,17 @@ export default function AdminPage() {
                             : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
                         }`}
                       >
-                        ⚽ Fotbal
+                        ⚽ Fotbal (API-Football)
+                      </button>
+                      <button
+                        onClick={() => setApiSportType('football_wc26')}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
+                          apiSportType === 'football_wc26'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+                        }`}
+                      >
+                        🏆 MS 2026 (WorldCup26.ir)
                       </button>
                       <button
                         onClick={() => setApiSportType('ice_hockey')}
