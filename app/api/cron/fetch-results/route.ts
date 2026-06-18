@@ -200,7 +200,9 @@ async function handleFetch(triggeredBy: 'cron' | 'manual') {
         continue
       }
 
-      const isWorldCup26 = sport === 'football_wc26'
+      // MS 2026 provider se pozná podle kombinace football + api_league_id = 999999
+      // (Supabase sloupec api_sport_type nemusí podporovat novou hodnotu football_wc26)
+      const isWorldCup26 = sport === 'football' && tournament.api_league_id === 999999
       let worldCup26Fixtures: WorldCup26Fixture[] = []
       const apiItemsByDate: Record<string, ApiFixture[]> = {}
 

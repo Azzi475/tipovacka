@@ -92,8 +92,14 @@ export default function AdminPage() {
     if (currentTournament) {
       setAutoFetchEnabled(currentTournament.auto_fetch_enabled || false)
       setAutoFetchTimes(currentTournament.auto_fetch_times || "08:00, 14:00, 20:00")
-      setApiSportType((currentTournament.api_sport_type as any) || 'football')
-      setApiLeagueId(currentTournament.api_league_id?.toString() || '')
+      // MS 2026 provider se pozná podle api_league_id = 999999
+      if (currentTournament.api_league_id === 999999) {
+        setApiSportType('football_wc26')
+        setApiLeagueId('')
+      } else {
+        setApiSportType((currentTournament.api_sport_type as any) || 'football')
+        setApiLeagueId(currentTournament.api_league_id?.toString() || '')
+      }
       setApiSeason(currentTournament.api_season?.toString() || '')
       loadFetchLogs(currentTournament.id)
     }
@@ -292,15 +298,23 @@ export default function AdminPage() {
     if (!currentTournament) return
     setSavingAutoFetch(true)
 
-    const leagueIdNum = apiLeagueId ? parseInt(apiLeagueId) : null
+    let leagueIdNum = apiLeagueId ? parseInt(apiLeagueId) : null
     const seasonNum = apiSeason ? parseInt(apiSeason) : null
+
+    // MS 2026 provider se ukládá jako football + api_league_id = 999999
+    // (Supabase sloupec api_sport_type nemusí podporovat novou hodnotu football_wc26)
+    let sportType = apiSportType
+    if (apiSportType === 'football_wc26') {
+      sportType = 'football'
+      leagueIdNum = 999999
+    }
 
     const { error } = await supabase
       .from('tournaments')
       .update({
         auto_fetch_enabled: autoFetchEnabled,
         auto_fetch_times: autoFetchTimes,
-        api_sport_type: apiSportType,
+        api_sport_type: sportType,
         api_league_id: leagueIdNum,
         api_season: seasonNum
       })
@@ -314,7 +328,7 @@ export default function AdminPage() {
         ...currentTournament,
         auto_fetch_enabled: autoFetchEnabled,
         auto_fetch_times: autoFetchTimes,
-        api_sport_type: apiSportType,
+        api_sport_type: sportType,
         api_league_id: leagueIdNum,
         api_season: seasonNum
       })
