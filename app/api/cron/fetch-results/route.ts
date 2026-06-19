@@ -303,6 +303,10 @@ async function handleFetch(triggeredBy: 'cron' | 'manual', checkTime: boolean = 
             homeScore = found.homeScore
             awayScore = found.awayScore
             debug.lastMatched = { home: found.home, away: found.away, finished: found.finished, score: `${homeScore}:${awayScore}` }
+            if (!isFinished) {
+              debug.pendingMatches = debug.pendingMatches || []
+              ;(debug.pendingMatches as string[]).push(`${found.home} vs ${found.away} (${homeScore}:${awayScore}, finished=${found.finished})`)
+            }
           } else {
             const kickoff = new Date(match.kickoff_at)
             const dateStr = kickoff.toISOString().split('T')[0]
@@ -337,8 +341,20 @@ async function handleFetch(triggeredBy: 'cron' | 'manual', checkTime: boolean = 
           }
 
           if (isFinished && homeScore !== null && awayScore !== null) {
-            await evaluateMatch(supabase, match.id, homeScore, awayScore)
-            updated++
+            try {
+              await evaluateMatch(supabase, match.id, homeScore, awayScore)
+              updated++
+              debug.evaluatedMatches = debug.evaluatedMatches || []
+              ;(debug.evaluatedMatches as string[]).push(`${match.home_team_name} ${homeScore}:${awayScore} ${match.away_team_name}`)
+            } catch (evalErr: unknown) {
+              const evalDetail = evalErr instanceof Error ? evalErr.message : 'Neznámá chyba'
+              debug.evaluationErrors = debug.evaluationErrors || []
+              ;(debug.evaluationErrors as string[]).push(`${match.home_team_name} vs ${match.away_team_name}: ${evalDetail}`)
+              console.error(`Chyba vyhodnocení zápasu ${match.id}:`, evalDetail)
+            }
+          } else if (isFinished) {
+            debug.matchedButNoScore = debug.matchedButNoScore || []
+            ;(debug.matchedButNoScore as string[]).push(`${match.home_team_name} vs ${match.away_team_name} (finished=${isFinished}, homeScore=${homeScore}, awayScore=${awayScore})`)
           }
         } catch (err: unknown) {
           console.error(`Chyba u zápasu ${match.id}:`, err instanceof Error ? err.message : 'Neznámá chyba')
