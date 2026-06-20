@@ -1,4 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js'
+import { createServiceRoleClient } from '@/lib/supabase/service-role'
 
 interface PredictionRow {
   id: string
@@ -7,13 +7,16 @@ interface PredictionRow {
 }
 
 export async function evaluateMatch(
-  supabase: SupabaseClient,
+  _supabase: unknown,
   matchId: string,
   homeScore: number,
   awayScore: number
 ): Promise<{ evaluated: number }> {
+  // Použij service role klienta, aby vyhodnocení fungovalo i z cronu bez přihlášeného uživatele
+  const supabase = createServiceRoleClient()
+
   // 1. Uložení výsledku do matches
-  const { error: matchError } = await supabase
+  const { data: updatedMatch, error: matchError } = await supabase
     .from('matches')
     .update({
       home_score_regular: homeScore,
@@ -21,9 +24,15 @@ export async function evaluateMatch(
       status: 'finished'
     })
     .eq('id', matchId)
+    .select('id, home_score_regular, away_score_regular, status')
+    .single()
 
   if (matchError) {
     throw new Error(`Chyba při ukládání výsledku zápasu: ${matchError.message}`)
+  }
+
+  if (!updatedMatch || updatedMatch.status !== 'finished') {
+    throw new Error(`Zápas ${matchId} nebyl aktualizován na finished`)
   }
 
   // 2. Načtení tipů pro tento zápas
