@@ -714,10 +714,10 @@ export default function AdminPage() {
                   <svg className={`w-4 h-4 ${scraping ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  {scraping ? 'Načítám...' : 'Načíst výsledky (API-Football)'}
+                  {scraping ? 'Načítám...' : 'Načíst výsledky'}
                 </button>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Načte výsledky ze základní hrací doby (90 min) přes API-Football. Vyžaduje API klíč v proměnné prostředí API_FOOTBALL_KEY.
+                  Načte výsledky podle provideru nastaveného v záložce Nastavení. Pro MS 2026 používá WorldCup26.ir, pro běžný fotbal/hokej API-Football.
                 </p>
               </div>
             </div>
@@ -957,7 +957,7 @@ export default function AdminPage() {
                       </div>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">
-                      Pokud vyplníte League ID a Season, stáhne se celý turnaj v jednom requestu (šetří limit 100 req/den).
+                      League ID a Season se používá pro API-Football. Free plán API-Football nepodporuje MS 2026 — pro MS 2026 vyber provider 🏆 MS 2026 (WorldCup26.ir).
                     </p>
 
                     {/* Režim auto-fetch */}
