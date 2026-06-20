@@ -213,6 +213,46 @@ async function handleFetch(triggeredBy: 'cron' | 'manual', checkTime: boolean = 
       const apiHost = isHockey ? 'v1.hockey.api-sports.io' : 'v3.football.api-sports.io'
       const endpoint = isHockey ? 'games' : 'fixtures'
 
+      // Nejprve přepočítej existující finished zápasy, které nemají přiřazené body.
+      // Toto opraví zápasy, které byly dříve označeny jako finished, ale predikce se nezapsaly.
+      const { data: unfinishedFinishedMatches } = await supabase
+        .from('matches')
+        .select('id, home_team_name, away_team_name, home_score_regular, away_score_regular, predictions!inner(id)')
+        .eq('tournament_id', tournament.id)
+        .eq('status', 'finished')
+        .is('predictions.points', null)
+
+      if (unfinishedFinishedMatches && unfinishedFinishedMatches.length > 0) {
+        debug.reEvaluateFinishedMatches = unfinishedFinishedMatches.length
+        for (const finishedMatch of unfinishedFinishedMatches) {
+          try {
+            if (
+              finishedMatch.home_score_regular !== null &&
+              finishedMatch.away_score_regular !== null
+            ) {
+              await evaluateMatch(
+                supabase,
+                finishedMatch.id,
+                finishedMatch.home_score_regular,
+                finishedMatch.away_score_regular
+              )
+              updated++
+              debug.reEvaluatedMatches = debug.reEvaluatedMatches || []
+              ;(debug.reEvaluatedMatches as string[]).push(
+                `${finishedMatch.home_team_name} ${finishedMatch.home_score_regular}:${finishedMatch.away_score_regular} ${finishedMatch.away_team_name}`
+              )
+            }
+          } catch (evalErr: unknown) {
+            const evalDetail = evalErr instanceof Error ? evalErr.message : 'Neznámá chyba'
+            debug.reEvaluationErrors = debug.reEvaluationErrors || []
+            ;(debug.reEvaluationErrors as string[]).push(
+              `${finishedMatch.home_team_name} vs ${finishedMatch.away_team_name}: ${evalDetail}`
+            )
+            console.error(`Chyba přepočtu zápasu ${finishedMatch.id}:`, evalDetail)
+          }
+        }
+      }
+
       // Načti nedokončené zápasy turnaje
       const { data: matches } = await supabase
         .from('matches')
@@ -222,8 +262,8 @@ async function handleFetch(triggeredBy: 'cron' | 'manual', checkTime: boolean = 
         .order('kickoff_at', { ascending: true })
 
       if (!matches || matches.length === 0) {
-        await finishFetchLog(supabase, logId, { apiCalls, matchesUpdated: 0, matchesNotFound: 0 })
-        results.push({ tournament: tournament.name, sport, skipped: 'Žádné nedokončené zápasy' })
+        await finishFetchLog(supabase, logId, { apiCalls, matchesUpdated: updated, matchesNotFound: notFound })
+        results.push({ tournament: tournament.name, sport, skipped: 'Žádné nedokončené zápasy', updated })
         continue
       }
 

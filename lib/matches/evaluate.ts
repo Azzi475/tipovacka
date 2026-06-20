@@ -11,7 +11,7 @@ export async function evaluateMatch(
   matchId: string,
   homeScore: number,
   awayScore: number
-): Promise<{ evaluated: number }> {
+): Promise<{ evaluated: number; matchUpdated: boolean; predictionErrors?: string[] }> {
   // Použij service role klienta, aby vyhodnocení fungovalo i z cronu bez přihlášeného uživatele
   const supabase = createServiceRoleClient()
 
@@ -47,7 +47,7 @@ export async function evaluateMatch(
   }
 
   if (!predictions || predictions.length === 0) {
-    return { evaluated: 0 }
+    return { evaluated: 0, matchUpdated: true }
   }
 
   // 3. Bodovací logika
@@ -96,6 +96,7 @@ export async function evaluateMatch(
   })
 
   // 4. Hromadná aktualizace tipů
+  const predictionErrors: string[] = []
   for (const update of updates) {
     const { error: updateError } = await supabase
       .from('predictions')
@@ -108,9 +109,14 @@ export async function evaluateMatch(
       .eq('id', update.id)
 
     if (updateError) {
+      predictionErrors.push(`${update.id}: ${updateError.message}`)
       console.error('Prediction update error:', updateError)
     }
   }
 
-  return { evaluated: predictions.length }
+  if (predictionErrors.length > 0) {
+    throw new Error(`Chyby při ukládání bodů: ${predictionErrors.join('; ')}`)
+  }
+
+  return { evaluated: predictions.length, matchUpdated: true }
 }
